@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { adminAPI } from '../../services/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { useTheme } from '../../context/ThemeContext';
@@ -15,7 +16,7 @@ export default function AdminDashboard() {
   if (loading) return (
     <div className="p-8">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {Array(8).fill(0).map((_, i) => <div key={i} className="h-28 rounded-2xl shimmer" />)}
+        {Array(9).fill(0).map((_, i) => <div key={i} className="h-28 rounded-2xl shimmer" />)}
       </div>
     </div>
   );
@@ -29,6 +30,7 @@ export default function AdminDashboard() {
     { label: 'Banned Users', value: stats?.stats.bannedUsers?.toLocaleString() || 0, icon: '🚫', color: 'from-red-500 to-red-600', change: 'Need review' },
     { label: 'New Today', value: stats?.stats.newUsersToday?.toLocaleString() || 0, icon: '🆕', color: 'from-teal-500 to-teal-600', change: 'Registered today' },
     { label: 'Posts Today', value: stats?.stats.newPostsToday?.toLocaleString() || 0, icon: '📝', color: 'from-indigo-500 to-indigo-600', change: 'Created today' },
+    { label: 'Pending Reports', value: stats?.stats.pendingReports?.toLocaleString() || 0, icon: '🚩', color: 'from-red-500 to-red-600', change: 'Needs review', link: '/admin/reports' },
   ];
 
   const chartColor = isDark ? '#a8a8a8' : '#555';
@@ -42,18 +44,23 @@ export default function AdminDashboard() {
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {cards.map((card, i) => (
-          <div key={i} className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-2xl p-5 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-2xl">{card.icon}</span>
-              <span className={`text-xs font-medium bg-gradient-to-r ${card.color} bg-clip-text text-transparent`}>
-                {card.change}
-              </span>
+        {cards.map((card, i) => {
+          const cardBody = (
+            <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-2xl p-5 hover:shadow-lg transition-shadow">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl">{card.icon}</span>
+                <span className={`text-xs font-medium bg-gradient-to-r ${card.color} bg-clip-text text-transparent`}>
+                  {card.change}
+                </span>
+              </div>
+              <p className="text-2xl font-bold mb-1">{card.value}</p>
+              <p className="text-xs text-[var(--text-muted)]">{card.label}</p>
             </div>
-            <p className="text-2xl font-bold mb-1">{card.value}</p>
-            <p className="text-xs text-[var(--text-muted)]">{card.label}</p>
-          </div>
-        ))}
+          );
+          return card.link
+            ? <Link key={i} to={card.link}>{cardBody}</Link>
+            : <div key={i}>{cardBody}</div>;
+        })}
       </div>
 
       {/* Charts */}
