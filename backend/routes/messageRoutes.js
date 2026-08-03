@@ -1,0 +1,20 @@
+// messageRoutes.js
+import express from 'express';
+import * as msg from '../controllers/messageController.js';
+import { protect } from '../middleware/authMiddleware.js';
+import { upload } from '../middleware/upload.js';
+const msgRouter = express.Router();
+msgRouter.get('/conversations', protect, msg.getConversations);
+msgRouter.post('/conversations', protect, msg.getOrCreateConversation);
+msgRouter.post('/groups', protect, msg.createGroup);
+msgRouter.put('/groups/:groupId', protect, msg.updateGroup);
+msgRouter.post('/groups/:groupId/members', protect, msg.addGroupMembers);
+msgRouter.post('/groups/:groupId/leave', protect, msg.leaveGroup);
+msgRouter.get('/unread-count', protect, msg.getUnreadCount);
+msgRouter.get('/conversations/:conversationId/messages', protect, msg.getMessages);
+msgRouter.post('/conversations/:conversationId/messages', protect, upload.single('media'), msg.sendMessage);
+msgRouter.post('/conversations/:conversationId/mute', protect, msg.muteConversation);
+msgRouter.post('/conversations/:conversationId/archive', protect, msg.archiveConversation);
+msgRouter.delete('/:messageId', protect, msg.deleteMessage);
+msgRouter.post('/:messageId/react', protect, msg.reactToMessage);
+export { msgRouter as default };

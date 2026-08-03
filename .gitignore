@@ -1,0 +1,1029 @@
+# ============================================
+# Compiled source / Object files
+# ============================================
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+*.out
+*.obj
+
+# ============================================
+# Packages / Archives
+# ============================================
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+*.tgz
+*.bz2
+
+# ============================================
+# Logs and databases
+# ============================================
+*.log
+*.sql
+*.sqlite
+*.db
+
+# ============================================
+# OS generated files
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+\#*\#
+.#*
+
+# ============================================
+# IDEs and Editors
+# ============================================
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+.history/
+.ionide/
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+.idea_modules/
+
+# Eclipse
+.classpath
+.project
+.settings/
+.metadata/
+.recommenders/
+bin/
+tmp/
+
+# NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.atom/
+*.atom-project
+
+# Vim
+*.swp
+*.swo
+*.swn
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# TextMate
+*.tmproj
+*.tmproject
+tmtags
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xcworkspace
+!default.xcworkspace
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+.gradle/
+local.properties
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx/
+
+# ============================================
+# Node.js / JavaScript / TypeScript
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.npm
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+.nx/cache
+.nx/workspace-data
+.swc
+.parcel-cache/
+*.local
+
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+.env.example
+.venv
+env.bak/
+venv.bak/
+pythonenv*
+.pytest_cache/
+.coverage
+.coverage.*
+*.cover
+*.py,cover
+.hypothesis/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+cython_debug/
+*.egg-info/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+MANIFEST
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+htmlcov/
+.cache
+nosetests.xml
+coverage.xml
+
+# ============================================
+# Ruby
+# ============================================
+*.gem
+*.rbc
+/.config
+/coverage/
+/InstalledFiles
+/pkg/
+/spec/reports/
+/spec/examples.txt
+/test/tmp/
+/test/version_tmp/
+/tmp/
+.ruby-version
+.ruby-gemset
+.rvmrc
+.bundle/
+vendor/bundle/
+lib/bundler/man/
+pkg/
+rdoc/
+.bundle
+*.lock
+Gemfile.lock
+
+# ============================================
+# Java
+# ============================================
+*.class
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+.mtj.tmp/
+.mtj.tmp/
+
+# Package Files
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs
+hs_err_pid*
+
+# ============================================
+# C / C++
+# ============================================
+*.dSYM/
+*.su
+*.idb
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.sbr
+*.bsc
+*.pch
+*.idb
+*.ilk
+*.pdb
+*.obj
+*.res
+*.tlog
+*.lastbuildstate
+*.unsuccessfulbuild
+*.log
+BuildLog.htm
+ipch/
+*.aps
+*.ncb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+
+# ============================================
+# .NET / C#
+# ============================================
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.suo
+*.cache
+*.pdb
+*.vsp
+*.vspx
+*.sap
+*.e2e
+[Bb]undleArtifacts/
+*.nupkg
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+.DS_Store
+_UpgradeReport_Files/
+Backup*/
+UpgradeLog*.XML
+UpgradeLog*.htm
+ServiceFabricBackup/
+*.bim_*.settings
+*.mdf
+*.ldf
+*.ndf
+
+# ============================================
+# PHP
+# ============================================
+vendor/
+composer.phar
+composer.lock
+*.log
+*.cache
+*.env
+.env.*
+!.env.example
+.phpunit.result.cache
+.phpcs.cache
+.phplint-cache
+phpstan.neon
+.php_cs.cache
+.buildpath
+.project
+.settings/
+*.sublime-*
+.codeclimate.yml
+.hound.yml
+.scrutinizer.yml
+.travis.yml
+
+# ============================================
+# Go
+# ============================================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+vendor/
+*.prof
+.idea/
+*.swp
+
+# ============================================
+# Rust
+# ============================================
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+debug/
+target/debug/
+target/release/
+
+# ============================================
+# Dart / Flutter
+# ============================================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+ios/Flutter/Generated.xcconfig
+ios/Runner/GeneratedPluginRegistrant.*
+android/local.properties
+android/app/google-services.json
+android/.project
+android/.settings/
+android/.classpath
+ios/Podfile.lock
+ios/Pods/
+ios/Runner.xcworkspace/xcshareddata/
+ios/Runner.xcworkspace/xcuserdata/
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/flutter_assets/
+ios/Flutter/flutter_export_environment.sh
+ios/ServiceDefinitions.json
+ios/Runner/GeneratedPluginRegistrant.*
+
+# ============================================
+# Docker
+# ============================================
+docker-compose.override.yml
+.dockerignore
+*.dockerignore
+
+# ============================================
+# Terraform
+# ============================================
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+*.plan
+
+# ============================================
+# Kubernetes
+# ============================================
+*.kubeconfig
+*.kube/config
+helm/
+charts/
+*.tgz
+requirements.lock
+
+# ============================================
+# Ansible
+# ============================================
+*.retry
+*.log
+*.vault
+*.vault-pass
+ansible.log
+
+# ============================================
+# Vagrant
+# ============================================
+.vagrant/
+ubuntu-xenial-16.04-cloudimg-console.log
+
+# ============================================
+# Jekyll
+# ============================================
+_site/
+.sass-cache/
+.jekyll-cache/
+.jekyll-metadata
+vendor/
+
+# ============================================
+# Hugo
+# ============================================
+/resources/
+.hugo_build.lock
+
+# ============================================
+# Gatsby
+# ============================================
+.cache/
+
+# ============================================
+# Unity
+# ============================================
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Pp]rojectSettings/
+[Mm]emoryCaptures/
+[Aa]ssets/AssetStoreTools*
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+sysinfo.txt
+crashlytics-build.properties
+ExportedObj/
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# ============================================
+# Unreal Engine
+# ============================================
+Binaries/
+Intermediate/
+Saved/
+Build/
+DerivedDataCache/
+*.xcworkspace/
+*.xcodeproj/
+*.opensdf
+*.sdf
+*.suo
+*.sln
+*.user
+*.VC.db
+*.VC.opendb
+*.sln.docstates
+*.tmp
+*.log
+*.tlog
+*.pdb
+*.idb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+*.ipch
+*.lastbuildstate
+*.unsuccessfulbuild
+*.manifest
+*.recipe
+*.sbr
+*.bsc
+*.vsp
+*.vspx
+*.aps
+*.ncb
+*.suo
+*.tlb
+*.tlh
+*.tli
+*.pgc
+*.pgd
+
+# ============================================
+# Godot
+# ============================================
+.import/
+export.cfg
+export_presets.cfg
+*.translation
+.mono/
+data_*/
+.vscode/
+
+# ============================================
+# Arduino
+# ============================================
+build-*/
+*.bin
+*.elf
+*.hex
+*.eep
+*.o
+*.d
+*.lss
+*.lst
+*.map
+*.sym
+*.a
+*.so
+*.mk
+
+# ============================================
+# Keil uVision
+# ============================================
+*.uvguix.*
+*.scvd
+*.uvoptx
+*.uvprojx
+*.iex
+*.dep
+*.crf
+*.o
+*.d
+*.lst
+*.lnp
+*.plg
+*.bak
+*.axf
+*.htm
+*.sct
+*.map
+*.tra
+*.i
+JLinkLog.txt
+JLinkSettings.ini
+*.bin
+*.hex
+
+# ============================================
+# MATLAB
+# ============================================
+*.asv
+*.mex*
+*.mexw64
+*.mexa64
+*.mexmaci64
+*.mexglx
+*.slxc
+*.slxp
+*.prj
+*.fig
+*.mat
+*.mlappinstall
+*.mltbx
+*.p
+*.slprj/
+*.slxc
+*.slx~
+*.mdl~
+*.xml~
+sccprj/
+slprj/
+Simulink.slxc
+Simulink.slx~
+*.autosave
+*.m~
+resources/
+.reports/
+codegen/
+work/
+html/
+.DS_Store
+*_ert_rtw/
+
+# ============================================
+# R
+# ============================================
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+.Rproj
+*.Rproj
+.Rbuildignore
+.Rinstignore
+.Rcheck
+*.tar.gz
+*.tgz
+*.Rcheck/
+*.pdf
+*.html
+*.tex
+*.log
+*.aux
+*.out
+*.toc
+
+# ============================================
+# LaTeX
+# ============================================
+*.acn
+*.acr
+*.alg
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.dvi
+*.fdb_latexmk
+*.fls
+*.glg
+*.glo
+*.gls
+*.idx
+*.ilg
+*.ind
+*.ist
+*.lof
+*.log
+*.lot
+*.maf
+*.mtc
+*.mtc0
+*.nav
+*.nlo
+*.out
+*.pdfsync
+*.ps
+*.run.xml
+*.snm
+*.synctex.gz
+*.thm
+*.toc
+*.vrb
+*.xdy
+*.tdo
+*.xdv
+*.synctex(busy)
+
+# ============================================
+# WordPress
+# ============================================
+wp-config.php
+wp-content/upgrade/
+wp-content/uploads/
+wp-content/cache/
+wp-content/backups/
+wp-content/backup-db/
+wp-content/advanced-cache.php
+wp-content/w3tc-config/
+wp-content/wflogs/
+sitemap.xml
+sitemap.xml.gz
+.htaccess
+*.log
+error_log
+
+# ============================================
+# Drupal
+# ============================================
+sites/*/files/
+sites/*/private/
+sites/*/settings*.php
+sites/*/services*.yml
+sites/*/secrets.settings.php
+sites/development.services.yml
+sites/example.sites.php
+sites/example.settings.local.php
+
+# ============================================
+# Magento
+# ============================================
+/app/etc/env.php
+/pub/media/*
+!/pub/media/.htaccess
+/pub/static/*
+!/pub/static/.htaccess
+/var/*
+!/var/.htaccess
+/vendor/*
+!/vendor/.htaccess
+/generated/*
+!/generated/.htaccess
+.DS_Store
+
+# ============================================
+# Laravel
+# ============================================
+/node_modules
+/public/storage
+/public/hot
+/storage/*.key
+/vendor
+.env
+.env.backup
+.env.production
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+/.idea
+/.vscode
+
+# ============================================
+# Symfony
+# ============================================
+/app/config/parameters.yml
+/app/config/parameters.ini
+/build/
+/var/
+/vendor/
+/web/bundles/
+/composer.phar
+/.web-server-pid
+.env
+.env.local
+.env.*.local
+.phpunit.result.cache
+.php-cs-fixer.cache
+.php_cs.cache
+/.idea/
+/.vscode/
+
+# ============================================
+# Django
+# ============================================
+*.log
+*.pot
+*.pyc
+__pycache__/
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+*.mo
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.pytest_cache/
+hypothesis/
+.mypy_cache
+.ruff_cache/
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ============================================
+# Flask
+# ============================================
+instance/
+.webassets-cache
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.pyc
+__pycache__/
+instance/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# ============================================
+# React / React Native
+# ============================================
+# React Native
+*.jsbundle
+*.jsbundle.map
+ios/Pods/
+ios/build/
+android/app/build/
+android/build/
+android/local.properties
+android/.gradle/
+.gradle/
+.DS_Store
+.expo/
+.expo-shared/
+
+# Create React App
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ============================================
+# Vue.js
+# ============================================
+.DS_Store
+node_modules/
+*.local
+.env.local
+.env.*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ============================================
+# Angular
+# ============================================
+tmp/
+out-tsc/
+bazel-out/
+node_modules/
+aio/dist/
+aio/generated/
+.angular/
+.nx/
+.idea/
+.vscode/
+*.swo
+*.swp
+*.swn
+*.iml
+*.ipr
+*.iws
+*.orig
+*~
+\#*\#
+._*
+
+# ============================================
+# Svelte
+# ============================================
+.DS_Store
+node_modules/
+/.svelte-kit/
+/package
+.env
+.env.*
+!.env.example
+.vercel
+.output
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# ============================================
+# Generic environment / secrets
+# ============================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!*.pub.key
+secrets.*
+
+# ============================================
+# Generic backups / temp files
+# ============================================
+*.bak
+*.orig
+*.tmp
+*.temp
+*.old
+
+# ============================================
+# AI assistant / agent tooling
+# ============================================
+.claude/
+claude/
+.superpowers/
+superpowers/
+docs/
+plans/
+specs/
+
+# ============================================
+# Git worktrees
+# ============================================
+worktrees/
+*.worktree/
+
+# ============================================
+# BUILD OUTPUTS - ALL LOCATIONS (CRITICAL FOR NEXT.JS/REACT)
+# ============================================
+# Root level build folders
+dist/
+build/
+.next/
+out/
+dist-ssr/
+
+# ANY level build folders (includes public/dist, public/build, etc.)
+**/dist
+**/build
+**/.next
+**/out
+**/dist-ssr
+
+# Public folder specific (explicitly ignore)
+public/dist/
+public/build/
+public/.next/
+public/out/
+
+# ============================================
+# Vercel deployment specific
+# ============================================
+.vercel
+.output
+vercel.json
+
+# ============================================
+# Next.js specific
+# ============================================
+.next/
+out/
+**/.next
+**/out
