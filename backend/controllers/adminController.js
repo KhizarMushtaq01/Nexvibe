@@ -271,6 +271,9 @@ export const getReports = async (req, res) => {
 
     res.json({ success: true, groups: results, total, pages: Math.ceil(total / limit) });
   } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(400).json({ success: false, message: 'Invalid id' });
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -325,6 +328,9 @@ export const resolveReport = async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(400).json({ success: false, message: 'Invalid id' });
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };

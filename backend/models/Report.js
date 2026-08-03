@@ -20,7 +20,10 @@ const reportSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-reportSchema.index({ reporter: 1, targetType: 1, targetId: 1 }, { unique: true });
+reportSchema.index(
+  { reporter: 1, targetType: 1, targetId: 1 },
+  { unique: true, partialFilterExpression: { status: 'pending' } }
+);
 reportSchema.index({ status: 1, targetType: 1, targetId: 1 });
 
 const Report = mongoose.model('Report', reportSchema);

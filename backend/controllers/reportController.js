@@ -29,7 +29,7 @@ export const createReport = async (req, res) => {
       }
     }
 
-    const existing = await Report.findOne({ reporter: req.user._id, targetType, targetId });
+    const existing = await Report.findOne({ reporter: req.user._id, targetType, targetId, status: 'pending' });
     if (existing) {
       return res.status(400).json({ success: false, message: "You've already reported this" });
     }
@@ -37,6 +37,12 @@ export const createReport = async (req, res) => {
     await Report.create({ reporter: req.user._id, targetType, targetId, reason, note });
     res.status(201).json({ success: true, message: 'Report submitted' });
   } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(400).json({ success: false, message: 'Invalid target id' });
+    }
+    if (error.code === 11000) {
+      return res.status(400).json({ success: false, message: "You've already reported this" });
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };
