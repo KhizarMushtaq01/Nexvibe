@@ -1,0 +1,42 @@
+import Report from '../models/Report.js';
+import Post from '../models/Post.js';
+import User from '../models/User.js';
+
+const REASONS = ['spam', 'nudity', 'harassment', 'hate_speech', 'violence', 'false_info', 'other'];
+
+export const createReport = async (req, res) => {
+  try {
+    const { targetType, targetId, reason, note } = req.body;
+
+    if (!['post', 'user'].includes(targetType)) {
+      return res.status(400).json({ success: false, message: 'Invalid targetType' });
+    }
+    if (!REASONS.includes(reason)) {
+      return res.status(400).json({ success: false, message: 'Invalid reason' });
+    }
+
+    if (targetType === 'user') {
+      if (targetId === req.user._id.toString()) {
+        return res.status(400).json({ success: false, message: "You can't report yourself" });
+      }
+      const target = await User.findById(targetId);
+      if (!target) return res.status(404).json({ success: false, message: 'User not found' });
+    } else {
+      const target = await Post.findById(targetId);
+      if (!target) return res.status(404).json({ success: false, message: 'Post not found' });
+      if (target.author.toString() === req.user._id.toString()) {
+        return res.status(400).json({ success: false, message: "You can't report your own post" });
+      }
+    }
+
+    const existing = await Report.findOne({ reporter: req.user._id, targetType, targetId });
+    if (existing) {
+      return res.status(400).json({ success: false, message: "You've already reported this" });
+    }
+
+    await Report.create({ reporter: req.user._id, targetType, targetId, reason, note });
+    res.status(201).json({ success: true, message: 'Report submitted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

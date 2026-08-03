@@ -23,6 +23,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import searchRoutes from './routes/searchRoutes.js';
 import reelRoutes from './routes/reelRoutes.js';
+import reportRoutes from './routes/reportRoutes.js';
 
 dotenv.config();
 
@@ -89,6 +90,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/reels', reelRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Error handling
 app.use(notFound);
