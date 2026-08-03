@@ -32,6 +32,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminPosts from './pages/admin/AdminPosts';
 import AdminUserDetail from './pages/admin/AdminUserDetail';
+import AdminReports from './pages/admin/AdminReports';
 import TermsPage from './pages/Terms';
 import PrivacyPage from './pages/Privacy';
 import CookiesPage from './pages/Cookies';
@@ -126,6 +127,7 @@ function AppRoutes() {
         <Route path="users" element={<AdminUsers />} />
         <Route path="users/:id" element={<AdminUserDetail />} />
         <Route path="posts" element={<AdminPosts />} />
+        <Route path="reports" element={<AdminReports />} />
       </Route>
       
       {/* 404 Not Found */}

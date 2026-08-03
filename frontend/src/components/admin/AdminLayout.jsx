@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import Avatar from '../common/Avatar';
-import { FiUsers, FiFileText, FiBarChart2, FiArrowLeft, FiSun, FiMoon, FiLogOut } from 'react-icons/fi';
+import { FiUsers, FiFileText, FiBarChart2, FiArrowLeft, FiSun, FiMoon, FiLogOut, FiFlag } from 'react-icons/fi';
 import { MdOutlineAdminPanelSettings } from 'react-icons/md';
 
 export default function AdminLayout() {
@@ -14,6 +14,7 @@ export default function AdminLayout() {
     { to: '/admin', label: 'Dashboard', Icon: FiBarChart2, end: true },
     { to: '/admin/users', label: 'Users', Icon: FiUsers },
     { to: '/admin/posts', label: 'Posts', Icon: FiFileText },
+    { to: '/admin/reports', label: 'Reports', Icon: FiFlag },
   ];
 
   return (
