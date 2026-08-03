@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { FiX, FiImage, FiMapPin, FiSmile, FiChevronLeft } from 'react-icons/fi';
 import { BsChevronLeft, BsChevronRight } from 'react-icons/bs';
 
-export default function CreatePostModal({ onClose }) {
+export default function CreatePostModal({ onClose, initialType }) {
   const { user } = useAuth();
   const [step, setStep] = useState('select'); // select | edit | details
   const [files, setFiles] = useState([]);
@@ -17,9 +17,12 @@ export default function CreatePostModal({ onClose }) {
   const [visibility, setVisibility] = useState('public');
   const [allowComments, setAllowComments] = useState(true);
   const [hideLikes, setHideLikes] = useState(false);
+  const [postType, setPostType] = useState('post');
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  const isSingleVideo = files.length === 1 && files[0]?.type?.startsWith('video/');
 
   const handleFiles = useCallback(accepted => {
     if (!accepted.length) return;
@@ -29,8 +32,10 @@ export default function CreatePostModal({ onClose }) {
     if (!validFiles.length) { toast.error('Only images and videos allowed'); return; }
     setFiles(validFiles);
     setPreviews(validFiles.map(f => ({ url: URL.createObjectURL(f), type: f.type.startsWith('video') ? 'video' : 'image', name: f.name })));
+    const singleVideo = validFiles.length === 1 && validFiles[0].type.startsWith('video/');
+    setPostType(singleVideo && initialType === 'reel' ? 'reel' : 'post');
     setStep('edit');
-  }, []);
+  }, [initialType]);
 
   const handleDrop = e => {
     e.preventDefault(); setIsDragging(false);
@@ -47,6 +52,7 @@ export default function CreatePostModal({ onClose }) {
       fd.append('visibility', visibility);
       fd.append('allowComments', String(allowComments));
       fd.append('hideLikeCount', String(hideLikes));
+      fd.append('type', postType);
       if (location) fd.append('location', JSON.stringify({ name: location }));
       await postAPI.createPost(fd);
       toast.success('Post shared!');
@@ -160,6 +166,20 @@ export default function CreatePostModal({ onClose }) {
                 <Avatar src={user?.avatar} size={30} alt={user?.fullName} />
                 <span className="font-semibold text-sm">{user?.username}</span>
               </div>
+
+              {/* Post / Reel toggle */}
+              {isSingleVideo && (
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--border)]">
+                  <button type="button" onClick={() => setPostType('post')}
+                    className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-colors ${postType === 'post' ? 'bg-blue-500 text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'}`}>
+                    Post
+                  </button>
+                  <button type="button" onClick={() => setPostType('reel')}
+                    className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-colors ${postType === 'reel' ? 'bg-blue-500 text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'}`}>
+                    Reel
+                  </button>
+                </div>
+              )}
 
               {/* Caption */}
               <div className="px-4 py-3 border-b border-[var(--border)]">
