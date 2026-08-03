@@ -11,7 +11,7 @@ export const getDashboardStats = async (req, res) => {
       totalUsers, activeUsers, bannedUsers,
       totalPosts, totalStories,
       newUsersToday, newPostsToday,
-      verifiedUsers
+      verifiedUsers, pendingReportsResult
     ] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ isDeactivated: false, isBanned: false }),
@@ -20,8 +20,14 @@ export const getDashboardStats = async (req, res) => {
       Story.countDocuments(),
       User.countDocuments({ createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) } }),
       Post.countDocuments({ createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) } }),
-      User.countDocuments({ isVerified: true })
+      User.countDocuments({ isVerified: true }),
+      Report.aggregate([
+        { $match: { status: 'pending' } },
+        { $group: { _id: { targetType: '$targetType', targetId: '$targetId' } } },
+        { $count: 'total' }
+      ])
     ]);
+    const pendingReports = pendingReportsResult[0]?.total || 0;
 
     // Growth data - last 7 days
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -39,7 +45,7 @@ export const getDashboardStats = async (req, res) => {
 
     res.json({
       success: true,
-      stats: { totalUsers, activeUsers, bannedUsers, totalPosts, totalStories, newUsersToday, newPostsToday, verifiedUsers },
+      stats: { totalUsers, activeUsers, bannedUsers, totalPosts, totalStories, newUsersToday, newPostsToday, verifiedUsers, pendingReports },
       userGrowth,
       postGrowth
     });
