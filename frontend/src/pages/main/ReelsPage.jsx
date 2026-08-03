@@ -33,7 +33,7 @@ export default function ReelsPage() {
       <p className="text-sm text-[var(--text-secondary)] text-center max-w-xs">
         Follow people to see their reels, or create your first reel.
       </p>
-      <button onClick={() => navigate('/create')} className="btn-brand px-6 py-2.5 rounded-xl">
+      <button onClick={() => navigate('/create', { state: { intent: 'reel' } })} className="btn-brand px-6 py-2.5 rounded-xl">
         Create a reel
       </button>
     </div>
