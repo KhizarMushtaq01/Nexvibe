@@ -8,15 +8,17 @@ import fs from 'fs';
 // @route   POST /api/posts
 export const createPost = async (req, res) => {
   try {
-    const { caption, location, visibility, allowComments, hideLikeCount, tags, altText } = req.body;
+    const { caption, location, visibility, allowComments, hideLikeCount, tags, altText, type } = req.body;
     const hashtags = caption ? (caption.match(/#\w+/g) || []).map(h => h.toLowerCase()) : [];
     const mentions = caption ? (caption.match(/@\w+/g) || []) : [];
+
+    const isReelUpload = type === 'reel' && req.files?.length === 1 && req.files[0].mimetype.startsWith('video/');
 
     const mediaFiles = [];
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
         const isVideo = file.mimetype.startsWith('video/');
-        const result = await uploadToCloudinary(file.path, 'nexvibe/posts', {
+        const result = await uploadToCloudinary(file.path, isReelUpload ? 'nexvibe/reels' : 'nexvibe/posts', {
           resource_type: isVideo ? 'video' : 'image',
           ...(isVideo ? {} : { transformation: [{ quality: 'auto', fetch_format: 'auto' }] })
         });
@@ -43,7 +45,7 @@ export const createPost = async (req, res) => {
       allowComments: allowComments !== 'false',
       hideLikeCount: hideLikeCount === 'true',
       altText,
-      type: mediaFiles.length > 1 ? 'carousel' : 'post'
+      type: isReelUpload ? 'reel' : (mediaFiles.length > 1 ? 'carousel' : 'post')
     });
 
     await Post.findById(post._id).populate('author', 'username fullName avatar isVerified');

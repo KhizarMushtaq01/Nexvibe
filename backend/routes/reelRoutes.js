@@ -1,11 +1,7 @@
 import express from 'express';
 import Post from '../models/Post.js';
-import { protect, optionalAuth } from '../middleware/authMiddleware.js';
-import { upload } from '../middleware/upload.js';
-import { createPost } from '../controllers/postController.js';
+import { protect } from '../middleware/authMiddleware.js';
 import User from '../models/User.js';
-import fs from 'fs';
-import { uploadToCloudinary } from '../config/cloudinary.js';
 
 const router = express.Router();
 
@@ -30,37 +26,6 @@ router.get('/feed', protect, async (req, res) => {
       .limit(parseInt(limit));
 
     res.json({ success: true, reels, hasMore: reels.length === parseInt(limit) });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// Create reel
-router.post('/', protect, upload.single('media'), async (req, res) => {
-  req.body.type = 'reel';
-  if (!req.file) return res.status(400).json({ success: false, message: 'Video required for reel' });
-
-  try {
-    const result = await uploadToCloudinary(req.file.path, 'nexvibe/reels', { resource_type: 'video' });
-    fs.unlinkSync(req.file.path);
-
-    const reel = await Post.create({
-      author: req.user._id,
-      caption: req.body.caption || '',
-      media: [{
-        url: result.secure_url,
-        publicId: result.public_id,
-        type: 'video',
-        thumbnail: result.thumbnail_url,
-        duration: result.duration
-      }],
-      type: 'reel',
-      visibility: req.body.visibility || 'public',
-      music: req.body.music ? JSON.parse(req.body.music) : undefined
-    });
-
-    const populated = await Post.findById(reel._id).populate('author', 'username fullName avatar isVerified');
-    res.status(201).json({ success: true, reel: populated });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
