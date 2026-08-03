@@ -3,6 +3,7 @@ import Post from '../models/Post.js';
 import { Message } from '../models/Message.js';
 import Notification from '../models/Notification.js';
 import Story from '../models/Story.js';
+import Report from '../models/Report.js';
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -198,6 +199,108 @@ export const sendSystemNotification = async (req, res) => {
 
     await Notification.insertMany(notifications);
     res.json({ success: true, message: `Notification sent to ${targets.length} users` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getReports = async (req, res) => {
+  try {
+    const { targetType, page = 1, limit = 20 } = req.query;
+    const match = { status: 'pending', ...(targetType ? { targetType } : {}) };
+
+    const groups = await Report.aggregate([
+      { $match: match },
+      { $group: {
+          _id: { targetType: '$targetType', targetId: '$targetId' },
+          count: { $sum: 1 },
+          reasons: { $push: '$reason' },
+          reporterIds: { $push: '$reporter' },
+          firstReportedAt: { $min: '$createdAt' },
+          lastReportedAt: { $max: '$createdAt' }
+      } },
+      { $sort: { lastReportedAt: -1 } },
+      { $skip: (page - 1) * limit },
+      { $limit: parseInt(limit) }
+    ]);
+
+    const totalResult = await Report.aggregate([
+      { $match: match },
+      { $group: { _id: { targetType: '$targetType', targetId: '$targetId' } } },
+      { $count: 'total' }
+    ]);
+    const total = totalResult[0]?.total || 0;
+
+    const results = await Promise.all(groups.map(async (g) => {
+      const { targetType: gType, targetId } = g._id;
+      let target = null;
+      let targetMissing = false;
+
+      if (gType === 'post') {
+        target = await Post.findById(targetId).populate('author', 'username fullName avatar');
+      } else {
+        target = await User.findById(targetId).select('username fullName avatar isBanned');
+      }
+      if (!target) targetMissing = true;
+
+      const reporters = await User.find({ _id: { $in: g.reporterIds.slice(0, 5) } }).select('username');
+      const reasonCounts = g.reasons.reduce((acc, r) => { acc[r] = (acc[r] || 0) + 1; return acc; }, {});
+
+      return {
+        targetType: gType,
+        targetId,
+        target,
+        targetMissing,
+        count: g.count,
+        reasonCounts,
+        reporters,
+        firstReportedAt: g.firstReportedAt,
+        lastReportedAt: g.lastReportedAt
+      };
+    }));
+
+    res.json({ success: true, groups: results, total, pages: Math.ceil(total / limit) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const resolveReport = async (req, res) => {
+  try {
+    const { targetType, targetId, action } = req.body;
+    if (!['post', 'user'].includes(targetType)) {
+      return res.status(400).json({ success: false, message: 'Invalid targetType' });
+    }
+    if (!['dismiss', 'remove'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'Invalid action' });
+    }
+
+    let resolution = 'dismissed';
+
+    if (action === 'remove') {
+      if (targetType === 'post') {
+        await Post.findByIdAndUpdate(targetId, { isDeleted: true });
+        resolution = 'content_removed';
+      } else {
+        const user = await User.findById(targetId);
+        if (user) {
+          if (user.role === 'admin') {
+            return res.status(403).json({ success: false, message: 'Cannot ban admin' });
+          }
+          user.isBanned = true;
+          user.banReason = 'Multiple user reports';
+          await user.save();
+        }
+        resolution = 'user_banned';
+      }
+    }
+
+    await Report.updateMany(
+      { targetType, targetId, status: 'pending' },
+      { status: 'resolved', resolution, resolvedBy: req.user._id, resolvedAt: new Date() }
+    );
+
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
