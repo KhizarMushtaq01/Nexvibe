@@ -23,7 +23,7 @@ export const createReport = async (req, res) => {
       if (!target) return res.status(404).json({ success: false, message: 'User not found' });
     } else {
       const target = await Post.findById(targetId);
-      if (!target) return res.status(404).json({ success: false, message: 'Post not found' });
+      if (!target || target.isDeleted) return res.status(404).json({ success: false, message: 'Post not found' });
       if (target.author.toString() === req.user._id.toString()) {
         return res.status(400).json({ success: false, message: "You can't report your own post" });
       }

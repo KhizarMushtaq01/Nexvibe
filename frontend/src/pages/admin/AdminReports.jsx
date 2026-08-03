@@ -36,10 +36,9 @@ export default function AdminReports() {
     if (!confirm(`${verb}?`)) return;
     try {
       await adminAPI.resolveReport({ targetType: group.targetType, targetId: group.targetId, action });
-      setGroups(prev => prev.filter(g => !(g.targetType === group.targetType && g.targetId === group.targetId)));
-      setTotal(t => t - 1);
       toast.success(action === 'dismiss' ? 'Dismissed' : 'Action taken');
-    } catch { toast.error('Failed'); }
+      load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
   };
 
   return (
@@ -87,7 +86,14 @@ export default function AdminReports() {
                 <>
                   <Avatar src={g.target.avatar} size={44} alt={g.target.fullName} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold">@{g.target.username}</p>
+                    <p className="text-sm font-semibold flex items-center gap-1.5">
+                      @{g.target.username}
+                      {g.target.isBanned && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-500">
+                          Already banned
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-[var(--text-secondary)]">{g.target.fullName}</p>
                   </div>
                 </>
@@ -102,6 +108,11 @@ export default function AdminReports() {
                     </span>
                   ))}
                 </div>
+                {g.notes?.length > 0 && (
+                  <p className="text-xs text-[var(--text-muted)] italic mt-1 truncate" title={g.notes.join(' · ')}>
+                    "{g.notes[0]}"{g.notes.length > 1 ? ` (+${g.notes.length - 1} more)` : ''}
+                  </p>
+                )}
                 <p className="text-xs text-[var(--text-muted)] truncate">
                   {g.reporters.map(r => `@${r.username}`).join(', ')}{g.count > g.reporters.length ? ` +${g.count - g.reporters.length} more` : ''}
                 </p>
