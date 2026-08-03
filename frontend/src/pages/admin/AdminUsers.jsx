@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FiCheck, FiEye, FiFilter, FiSearch, FiSlash, FiTrash2 } from 'react-icons/fi';
+import { MdVerified } from 'react-icons/md';
 import { adminAPI } from '../../services/api';
 import { Link } from 'react-router-dom';
 import Avatar from '../../components/common/Avatar';

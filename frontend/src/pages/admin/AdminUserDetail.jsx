@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FiArrowLeft } from 'react-icons/fi';
+import { MdVerified } from 'react-icons/md';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { adminAPI } from '../../services/api';
 import Avatar from '../../components/common/Avatar';
