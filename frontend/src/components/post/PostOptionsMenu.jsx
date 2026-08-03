@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { postAPI, userAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import ReportModal from '../common/ReportModal';
 
 export default function PostOptionsMenu({ post, onClose, onDelete, onUpdate }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isOwn = post.author?._id === user?._id || post.author === user?._id;
+  const [reportTarget, setReportTarget] = useState(null); // null | 'post' | 'author'
 
   const actions = isOwn ? [
     {
@@ -38,7 +41,8 @@ export default function PostOptionsMenu({ post, onClose, onDelete, onUpdate }) {
     },
     { label: 'Cancel', onClick: onClose },
   ] : [
-    { label: 'Report', danger: true, onClick: () => { toast.success('Report submitted. Thank you.'); onClose(); } },
+    { label: 'Report', danger: true, onClick: () => setReportTarget('post') },
+    { label: `Report @${post.author?.username}`, danger: true, onClick: () => setReportTarget('author') },
     { label: 'Not interested', onClick: () => { onDelete?.(); onClose(); toast('Got it, we\'ll show you fewer posts like this'); } },
     {
       label: `Unfollow @${post.author?.username}`, danger: true, onClick: async () => {
@@ -56,6 +60,17 @@ export default function PostOptionsMenu({ post, onClose, onDelete, onUpdate }) {
     },
     { label: 'Cancel', onClick: onClose },
   ];
+
+  if (reportTarget) {
+    return (
+      <ReportModal
+        targetType={reportTarget === 'post' ? 'post' : 'user'}
+        targetId={reportTarget === 'post' ? post._id : post.author?._id}
+        label={reportTarget === 'post' ? 'Report this post' : `Report @${post.author?.username}`}
+        onClose={() => { setReportTarget(null); onClose(); }}
+      />
+    );
+  }
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>

@@ -151,6 +151,11 @@ export const reelAPI = {
   getFeed: (page = 1) => API.get(`/reels/feed?page=${page}`),
 };
 
+// REPORTS
+export const reportAPI = {
+  createReport: (data) => API.post('/reports', data),
+};
+
 // ADMIN
 export const adminAPI = {
   getDashboard: () => API.get('/admin/dashboard'),
@@ -164,6 +169,8 @@ export const adminAPI = {
   getPosts: (params) => API.get('/admin/posts', { params }),
   deletePost: (id) => API.delete(`/admin/posts/${id}`),
   sendNotification: (data) => API.post('/admin/notifications/send', data),
+  getReports: (params) => API.get('/admin/reports', { params }),
+  resolveReport: (data) => API.post('/admin/reports/resolve', data),
 };
 
 export default API;
