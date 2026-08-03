@@ -241,7 +241,7 @@ nexvibe/
 | Messages | `/api/messages/*` — conversations, group chat, send, react |
 | Notifications | `/api/notifications/*` — get, read, clear |
 | Search | `/api/search/*` — users, posts, hashtags |
-| Reels | `/api/reels/*` — feed, create |
+| Reels | `/api/reels/*` — feed only (creation via `POST /api/posts` with `type: reel`) |
 | Admin | `/api/admin/*` — dashboard, user management, content moderation |
 
 ---

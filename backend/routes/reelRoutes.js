@@ -10,13 +10,14 @@ router.get('/feed', protect, async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
     const currentUser = await User.findById(req.user._id);
-    const feedUserIds = [req.user._id, ...currentUser.following];
 
     const reels = await Post.find({
       type: 'reel',
       isDeleted: false,
+      isArchived: false,
       $or: [
-        { author: { $in: feedUserIds } },
+        { author: req.user._id },
+        { author: { $in: currentUser.following }, visibility: { $in: ['public', 'followers'] } },
         { visibility: 'public' }
       ]
     })

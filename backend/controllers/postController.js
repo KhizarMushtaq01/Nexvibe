@@ -85,7 +85,8 @@ export const getFeed = async (req, res) => {
       author: { $in: feedUserIds },
       visibility: { $in: ['public', 'followers'] },
       isDeleted: false,
-      isArchived: false
+      isArchived: false,
+      type: { $ne: 'reel' }
     })
       .populate('author', 'username fullName avatar isVerified isPrivate')
       .populate('likes', 'username fullName avatar')
@@ -102,7 +103,8 @@ export const getFeed = async (req, res) => {
     const total = await Post.countDocuments({
       author: { $in: feedUserIds },
       isDeleted: false,
-      isArchived: false
+      isArchived: false,
+      type: { $ne: 'reel' }
     });
 
     res.json({
