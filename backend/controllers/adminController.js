@@ -212,34 +212,42 @@ export const sendSystemNotification = async (req, res) => {
 
 export const getReports = async (req, res) => {
   try {
-    const { targetType, page = 1, limit = 20 } = req.query;
-    const match = { status: 'pending', ...(targetType ? { targetType } : {}) };
+    const { targetType, resolution, page = 1, limit = 20 } = req.query;
+    const status = req.query.status === 'resolved' ? 'resolved' : 'pending';
+    const match = {
+      status,
+      ...(targetType ? { targetType } : {}),
+      ...(status === 'resolved' && resolution ? { resolution } : {})
+    };
+    const groupId = { targetType: '$targetType', targetId: '$targetId', resolvedAt: '$resolvedAt' };
 
     const groups = await Report.aggregate([
       { $match: match },
       { $group: {
-          _id: { targetType: '$targetType', targetId: '$targetId' },
+          _id: groupId,
           count: { $sum: 1 },
           reasons: { $push: '$reason' },
           reporterIds: { $push: '$reporter' },
           notes: { $push: '$note' },
           firstReportedAt: { $min: '$createdAt' },
-          lastReportedAt: { $max: '$createdAt' }
+          lastReportedAt: { $max: '$createdAt' },
+          resolution: { $first: '$resolution' },
+          resolvedBy: { $first: '$resolvedBy' }
       } },
-      { $sort: { lastReportedAt: -1 } },
+      { $sort: status === 'resolved' ? { '_id.resolvedAt': -1 } : { lastReportedAt: -1 } },
       { $skip: (page - 1) * limit },
       { $limit: parseInt(limit) }
     ]);
 
     const totalResult = await Report.aggregate([
       { $match: match },
-      { $group: { _id: { targetType: '$targetType', targetId: '$targetId' } } },
+      { $group: { _id: groupId } },
       { $count: 'total' }
     ]);
     const total = totalResult[0]?.total || 0;
 
     const results = await Promise.all(groups.map(async (g) => {
-      const { targetType: gType, targetId } = g._id;
+      const { targetType: gType, targetId, resolvedAt } = g._id;
       let target = null;
       let targetMissing = false;
 
@@ -254,6 +262,7 @@ export const getReports = async (req, res) => {
       const reporters = await User.find({ _id: { $in: g.reporterIds.slice(0, 5) } }).select('username');
       const reasonCounts = g.reasons.reduce((acc, r) => { acc[r] = (acc[r] || 0) + 1; return acc; }, {});
       const notes = (g.notes || []).filter(Boolean);
+      const resolvedByUser = g.resolvedBy ? await User.findById(g.resolvedBy).select('username') : null;
 
       return {
         targetType: gType,
@@ -265,7 +274,10 @@ export const getReports = async (req, res) => {
         reporters,
         notes,
         firstReportedAt: g.firstReportedAt,
-        lastReportedAt: g.lastReportedAt
+        lastReportedAt: g.lastReportedAt,
+        resolution: g.resolution,
+        resolvedAt,
+        resolvedByUser: resolvedByUser ? { username: resolvedByUser.username } : null
       };
     }));
 
