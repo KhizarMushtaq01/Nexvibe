@@ -212,7 +212,8 @@ export const sendSystemNotification = async (req, res) => {
 
 export const getReports = async (req, res) => {
   try {
-    const { targetType, status = 'pending', resolution, page = 1, limit = 20 } = req.query;
+    const { targetType, resolution, page = 1, limit = 20 } = req.query;
+    const status = req.query.status === 'resolved' ? 'resolved' : 'pending';
     const match = {
       status,
       ...(targetType ? { targetType } : {}),

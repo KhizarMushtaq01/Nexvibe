@@ -83,7 +83,7 @@ export default function AdminReports() {
         ))}
       </div>
 
-      <div className="flex gap-2 mb-3">
+      <div className={`flex gap-2 ${status === 'resolved' ? 'mb-3' : 'mb-5'}`}>
         {TYPE_TABS.map(t => (
           <button key={t.value} onClick={() => { setTargetType(t.value); setPage(1); }}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors
@@ -104,7 +104,6 @@ export default function AdminReports() {
           ))}
         </div>
       )}
-      {status !== 'resolved' && <div className="mb-5" />}
 
       <div className="space-y-4">
         {loading ? (
@@ -168,7 +167,7 @@ export default function AdminReports() {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2 flex-shrink-0 items-end">
+              <div className={`flex flex-col gap-2 flex-shrink-0 ${status === 'resolved' ? 'items-end' : ''}`}>
                 {!g.targetMissing && (
                   <Link to={g.targetType === 'post' ? `/p/${g.targetId}` : `/${g.target.username}`} target="_blank"
                     className="text-xs text-center btn-outline px-3 py-1.5 rounded-lg">
