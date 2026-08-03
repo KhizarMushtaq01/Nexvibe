@@ -149,7 +149,6 @@ export const searchAPI = {
 // REELS
 export const reelAPI = {
   getFeed: (page = 1) => API.get(`/reels/feed?page=${page}`),
-  createReel: (formData) => API.post('/reels', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
 };
 
 // ADMIN
