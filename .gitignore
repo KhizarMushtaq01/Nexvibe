@@ -982,9 +982,14 @@ secrets.*
 claude/
 .superpowers/
 superpowers/
-docs/
+docs/*
+!docs/superpowers/
+docs/superpowers/*
+!docs/superpowers/specs/
 plans/
 specs/
+!docs/superpowers/specs/
+!docs/superpowers/specs/**
 
 # ============================================
 # Git worktrees
