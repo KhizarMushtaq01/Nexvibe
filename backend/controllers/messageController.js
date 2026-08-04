@@ -213,7 +213,7 @@ export const sendMessage = async (req, res) => {
           isDeleted: false,
           _id: { $ne: message._id }
         });
-        if (priorUnread === 0) {
+        if (priorUnread === 0 && recipientUser?.email) {
           await sendNewMessageEmail(recipientUser, req.user.fullName);
         }
       }
