@@ -1,5 +1,6 @@
 import { Message, Conversation } from '../models/Message.js';
 import User from '../models/User.js';
+import Notification from '../models/Notification.js';
 import { uploadToCloudinary } from '../config/cloudinary.js';
 import fs from 'fs';
 
@@ -183,6 +184,21 @@ export const sendMessage = async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.to(req.params.conversationId).emit('message:receive', populated);
+    }
+
+    // Create in-app notifications for recipients
+    const recipients = conversation.participants.filter(
+      p => p.toString() !== req.user._id.toString()
+    );
+    for (const recipientId of recipients) {
+      const recipientUser = await User.findById(recipientId).select('settings.notifications.messages');
+      if (recipientUser?.settings?.notifications?.messages === false) continue;
+      await Notification.create({
+        recipient: recipientId,
+        sender: req.user._id,
+        type: 'message',
+        text: `${req.user.fullName} sent you a message`
+      });
     }
 
     res.status(201).json({ success: true, message: populated });
