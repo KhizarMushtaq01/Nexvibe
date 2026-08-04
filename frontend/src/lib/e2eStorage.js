@@ -26,6 +26,10 @@ function runTx(storeName, mode, fn) {
     const tx = db.transaction(storeName, mode);
     const store = tx.objectStore(storeName);
     const result = fn(store);
+    // If fn returns a Promise (read operation), attach a catch to prevent unhandled rejection warning
+    if (result && typeof result.then === 'function') {
+      result.catch(() => {})  // swallow to mark inner promise as handled
+    }
     tx.oncomplete = () => resolve(result);
     tx.onerror = () => reject(tx.error);
   }));
