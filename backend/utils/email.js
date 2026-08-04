@@ -121,6 +121,21 @@ export const sendOTPEmail = async (user, otp, purpose = 'login') => {
   });
 };
 
+export const sendNewMessageEmail = async (user, senderName) => {
+  await sendEmail({
+    to: user.email,
+    subject: `${senderName} sent you a message on ${APP_NAME}`,
+    html: baseEmailTemplate(`
+      <h2 class="title">New Message 💬</h2>
+      <p class="text">Hi <strong>${user.fullName}</strong>,</p>
+      <p class="text"><strong>${senderName}</strong> sent you a message on ${APP_NAME}.</p>
+      <div style="text-align:center">
+        <a href="${process.env.FRONTEND_URL}/messages" class="button">Open Messages</a>
+      </div>
+    `)
+  });
+};
+
 export const sendPasswordResetEmail = async (user, token) => {
   const url = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
   await sendEmail({

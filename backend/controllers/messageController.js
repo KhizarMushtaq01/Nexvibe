@@ -2,6 +2,8 @@ import { Message, Conversation } from '../models/Message.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 import { uploadToCloudinary } from '../config/cloudinary.js';
+import { sendNewMessageEmail } from '../utils/email.js';
+import { getSocketId } from '../config/socket.js';
 import fs from 'fs';
 
 // @desc    Get or create conversation
@@ -186,19 +188,35 @@ export const sendMessage = async (req, res) => {
       io.to(req.params.conversationId).emit('message:receive', populated);
     }
 
-    // Create in-app notifications for recipients
+    // Create in-app notifications for recipients, and email offline recipients
+    // if this is the first unread message (avoid spamming back-to-back sends)
     const recipients = conversation.participants.filter(
       p => p.toString() !== req.user._id.toString()
     );
     for (const recipientId of recipients) {
-      const recipientUser = await User.findById(recipientId).select('settings.notifications.messages');
+      const recipientUser = await User.findById(recipientId).select('email fullName settings.notifications.messages');
       if (recipientUser?.settings?.notifications?.messages === false) continue;
+
       await Notification.create({
         recipient: recipientId,
         sender: req.user._id,
         type: 'message',
         text: `${req.user.fullName} sent you a message`
       });
+
+      const isOnline = !!getSocketId(recipientId.toString());
+      if (!isOnline) {
+        const priorUnread = await Message.countDocuments({
+          conversation: conversation._id,
+          sender: { $ne: recipientId },
+          'readBy.user': { $ne: recipientId },
+          isDeleted: false,
+          _id: { $ne: message._id }
+        });
+        if (priorUnread === 0) {
+          await sendNewMessageEmail(recipientUser, req.user.fullName);
+        }
+      }
     }
 
     res.status(201).json({ success: true, message: populated });
