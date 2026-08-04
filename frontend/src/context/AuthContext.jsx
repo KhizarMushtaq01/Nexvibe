@@ -1,8 +1,37 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { authAPI } from '../services/api';
+import { authAPI, e2eAPI } from '../services/api';
 import toast from 'react-hot-toast';
+import { sodiumReady, generateIdentity, generateOneTimePreKeys } from '../lib/e2eCrypto';
+import { getLocalIdentity, saveLocalIdentity, getUnusedOneTimePreKeys, saveOneTimePreKeys } from '../lib/e2eStorage';
 
 const AuthContext = createContext(null);
+
+async function ensureE2EKeys() {
+  await sodiumReady();
+  let identity = await getLocalIdentity();
+  if (!identity) {
+    identity = generateIdentity();
+    await saveLocalIdentity(identity);
+    const preKeys = generateOneTimePreKeys(20, 1);
+    await saveOneTimePreKeys(preKeys);
+    await e2eAPI.publishKeys({
+      identityKey: identity.publicKey,
+      oneTimePreKeys: preKeys.map(({ keyId, publicKey }) => ({ keyId, publicKey }))
+    });
+    return;
+  }
+
+  const unused = await getUnusedOneTimePreKeys();
+  if (unused.length < 5) {
+    const maxKeyId = unused.reduce((max, k) => Math.max(max, k.keyId), 0);
+    const morePreKeys = generateOneTimePreKeys(20, maxKeyId + 1);
+    await saveOneTimePreKeys(morePreKeys);
+    await e2eAPI.publishKeys({
+      identityKey: identity.publicKey,
+      oneTimePreKeys: morePreKeys.map(({ keyId, publicKey }) => ({ keyId, publicKey }))
+    });
+  }
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -13,6 +42,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data } = await authAPI.getMe();
       setUser(data.user);
+      ensureE2EKeys().catch(err => console.error('E2E key setup failed:', err));
     } catch {
       setUser(null);
       localStorage.removeItem('token');
@@ -33,6 +63,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', data.token);
       setToken(data.token);
       setUser(data.user);
+      ensureE2EKeys().catch(err => console.error('E2E key setup failed:', err));
     }
     return data;
   };
@@ -59,6 +90,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', data.token);
       setToken(data.token);
       setUser(data.user);
+      ensureE2EKeys().catch(err => console.error('E2E key setup failed:', err));
     }
     return data;
   };

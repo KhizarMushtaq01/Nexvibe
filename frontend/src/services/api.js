@@ -156,6 +156,11 @@ export const reportAPI = {
   createReport: (data) => API.post('/reports', data),
 };
 
+export const e2eAPI = {
+  publishKeys: (data) => API.post('/e2e/keys', data), // { identityKey, oneTimePreKeys }
+  getPreKeyBundle: (userId) => API.get(`/e2e/prekey-bundle/${userId}`),
+};
+
 // ADMIN
 export const adminAPI = {
   getDashboard: () => API.get('/admin/dashboard'),
