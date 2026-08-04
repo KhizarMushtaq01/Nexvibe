@@ -18,7 +18,7 @@ export const getOrCreateConversation = async (req, res) => {
       type: 'direct',
       participants: { $all: [req.user._id, participantId], $size: 2 }
     })
-      .populate('participants', 'username fullName avatar isVerified isOnline lastSeen')
+      .populate('participants', 'username fullName avatar isVerified isOnline lastSeen e2e.identityKey')
       .populate('lastMessage');
 
     if (!conversation) {
@@ -27,7 +27,15 @@ export const getOrCreateConversation = async (req, res) => {
         type: 'direct'
       });
       conversation = await Conversation.findById(conversation._id)
-        .populate('participants', 'username fullName avatar isVerified isOnline lastSeen');
+        .populate('participants', 'username fullName avatar isVerified isOnline lastSeen e2e.identityKey');
+    }
+
+    if (!conversation.isEncrypted && conversation.type === 'direct') {
+      const bothHaveKeys = conversation.participants.every(p => p.e2e?.identityKey);
+      if (bothHaveKeys) {
+        conversation.isEncrypted = true;
+        await conversation.save();
+      }
     }
 
     res.json({ success: true, conversation });
@@ -113,7 +121,7 @@ export const getMessages = async (req, res) => {
 // @route   POST /api/messages/conversations/:conversationId/messages
 export const sendMessage = async (req, res) => {
   try {
-    const { content, type = 'text', replyTo, sharedPost } = req.body;
+    const { content, type = 'text', replyTo, sharedPost, encrypted, encryptedContent } = req.body;
     const conversation = await Conversation.findById(req.params.conversationId);
 
     if (!conversation || !conversation.participants.includes(req.user._id)) {
@@ -136,11 +144,14 @@ export const sendMessage = async (req, res) => {
       fs.unlinkSync(req.file.path);
     }
 
+    const isEncrypted = encrypted === true || encrypted === 'true';
     const message = await Message.create({
       conversation: req.params.conversationId,
       sender: req.user._id,
       type,
-      content,
+      content: isEncrypted ? undefined : content,
+      encrypted: isEncrypted,
+      encryptedContent: isEncrypted ? JSON.parse(encryptedContent) : undefined,
       media: Object.keys(mediaData).length ? mediaData : undefined,
       replyTo,
       sharedPost

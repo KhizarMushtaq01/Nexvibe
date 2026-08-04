@@ -11,7 +11,20 @@ const messageSchema = new mongoose.Schema({
   },
   
   content: String,
-  
+
+  encrypted: { type: Boolean, default: false },
+  encryptedContent: {
+    ciphertext: String,
+    header: {
+      dhPublicKey: String,
+      previousChainLength: Number,
+      messageNumber: Number,
+      senderIdentityKey: String,
+      senderEphemeralKey: String,
+      oneTimePreKeyId: Number
+    }
+  },
+
   media: {
     url: String,
     publicId: String,
