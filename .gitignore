@@ -986,10 +986,13 @@ docs/*
 !docs/superpowers/
 docs/superpowers/*
 !docs/superpowers/specs/
+!docs/superpowers/plans/
 plans/
 specs/
 !docs/superpowers/specs/
 !docs/superpowers/specs/**
+!docs/superpowers/plans/
+!docs/superpowers/plans/**
 
 # ============================================
 # Git worktrees
