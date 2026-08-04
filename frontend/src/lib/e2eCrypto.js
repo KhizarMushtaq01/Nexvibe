@@ -122,3 +122,133 @@ export function initSessionAsReceiver(myIdentityKeyPair, myOneTimePreKeys, hands
     skippedMessageKeys: {}
   };
 }
+
+export class DecryptError extends Error {}
+
+const MAX_SKIP = 1000;
+
+function chainStep(chainKey) {
+  const messageKey = kdf(chainKey, 'message-key', 32);
+  const nextChainKey = kdf(chainKey, 'chain-key', 32);
+  return { messageKey, nextChainKey };
+}
+
+function performDhRatchetStep(session, theirNewDhPublicKey) {
+  const dhOut1 = sodium.crypto_scalarmult(session.dhSelfPrivateKey, theirNewDhPublicKey);
+  const material1 = concatBytes(session.rootKey, dhOut1);
+  const rootKeyAfterReceive = kdf(material1, 'ratchet-root', 32);
+  const receivingChainKey = kdf(material1, 'ratchet-chain', 32);
+
+  const newSelf = sodium.crypto_box_keypair();
+  const dhOut2 = sodium.crypto_scalarmult(newSelf.privateKey, theirNewDhPublicKey);
+  const material2 = concatBytes(rootKeyAfterReceive, dhOut2);
+  const rootKeyAfterSend = kdf(material2, 'ratchet-root', 32);
+  const sendingChainKey = kdf(material2, 'ratchet-chain', 32);
+
+  session.previousChainLength = session.sendingChain.n;
+  session.rootKey = rootKeyAfterSend;
+  session.receivingChain = { key: receivingChainKey, n: 0 };
+  session.sendingChain = { key: sendingChainKey, n: 0 };
+  session.dhSelfPrivateKey = newSelf.privateKey;
+  session.dhSelfPublicKey = newSelf.publicKey;
+  session.dhRemotePublicKey = theirNewDhPublicKey;
+}
+
+function selfRatchetStep(session) {
+  const newSelf = sodium.crypto_box_keypair();
+  const dhOut = sodium.crypto_scalarmult(newSelf.privateKey, session.dhRemotePublicKey);
+  const material = concatBytes(session.rootKey, dhOut);
+  session.rootKey = kdf(material, 'ratchet-root', 32);
+  session.sendingChain = { key: kdf(material, 'ratchet-chain', 32), n: 0 };
+  session.dhSelfPrivateKey = newSelf.privateKey;
+  session.dhSelfPublicKey = newSelf.publicKey;
+}
+
+function skipMessageKeys(session, untilN) {
+  if (!session.receivingChain.key || session.receivingChain.n >= untilN) return;
+  const remoteKeyB64 = sodium.to_base64(session.dhRemotePublicKey);
+  while (session.receivingChain.n < untilN) {
+    const { messageKey, nextChainKey } = chainStep(session.receivingChain.key);
+    session.skippedMessageKeys[`${remoteKeyB64}|${session.receivingChain.n}`] = messageKey;
+    session.receivingChain.key = nextChainKey;
+    session.receivingChain.n++;
+  }
+  const keys = Object.keys(session.skippedMessageKeys);
+  if (keys.length > MAX_SKIP) {
+    for (const k of keys.slice(0, keys.length - MAX_SKIP)) delete session.skippedMessageKeys[k];
+  }
+}
+
+function aeadEncrypt(key, plaintext, header) {
+  const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+  const aad = sodium.from_string(JSON.stringify(header));
+  const ct = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
+    sodium.from_string(plaintext), aad, null, nonce, key
+  );
+  return sodium.to_base64(concatBytes(nonce, ct));
+}
+
+function aeadDecrypt(key, ciphertextB64, header) {
+  const raw = sodium.from_base64(ciphertextB64);
+  const nonceLen = sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
+  const nonce = raw.slice(0, nonceLen);
+  const ct = raw.slice(nonceLen);
+  const aad = sodium.from_string(JSON.stringify(header));
+  try {
+    const plaintextBytes = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, ct, aad, nonce, key);
+    return sodium.to_string(plaintextBytes);
+  } catch {
+    throw new DecryptError('Failed to decrypt message');
+  }
+}
+
+export function ratchetEncrypt(session, plaintext) {
+  if (!session.sendingChain.key) {
+    selfRatchetStep(session);
+  }
+  const { messageKey, nextChainKey } = chainStep(session.sendingChain.key);
+  const n = session.sendingChain.n;
+  session.sendingChain.key = nextChainKey;
+  session.sendingChain.n = n + 1;
+
+  const header = {
+    dhPublicKey: sodium.to_base64(session.dhSelfPublicKey),
+    previousChainLength: session.previousChainLength,
+    messageNumber: n
+  };
+  const ciphertext = aeadEncrypt(messageKey, plaintext, header);
+  return { ciphertext, header, session };
+}
+
+export function ratchetDecrypt(session, ciphertext, header) {
+  const ratchetHeader = {
+    dhPublicKey: header.dhPublicKey,
+    previousChainLength: header.previousChainLength,
+    messageNumber: header.messageNumber
+  };
+
+  const skipCacheKey = `${ratchetHeader.dhPublicKey}|${ratchetHeader.messageNumber}`;
+  if (session.skippedMessageKeys[skipCacheKey]) {
+    const messageKey = session.skippedMessageKeys[skipCacheKey];
+    delete session.skippedMessageKeys[skipCacheKey];
+    const plaintext = aeadDecrypt(messageKey, ciphertext, ratchetHeader);
+    return { plaintext, session };
+  }
+
+  const incomingDh = sodium.from_base64(ratchetHeader.dhPublicKey);
+  const isNewRatchetKey = !session.dhRemotePublicKey ||
+    sodium.to_base64(session.dhRemotePublicKey) !== ratchetHeader.dhPublicKey;
+
+  if (isNewRatchetKey) {
+    skipMessageKeys(session, ratchetHeader.previousChainLength);
+    performDhRatchetStep(session, incomingDh);
+  }
+
+  skipMessageKeys(session, ratchetHeader.messageNumber);
+  const { messageKey, nextChainKey } = chainStep(session.receivingChain.key);
+  session.receivingChain.key = nextChainKey;
+  session.receivingChain.n = ratchetHeader.messageNumber + 1;
+
+  const plaintext = aeadDecrypt(messageKey, ciphertext, ratchetHeader);
+  return { plaintext, session };
+}

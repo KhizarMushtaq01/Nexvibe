@@ -101,3 +101,86 @@ describe('X3DH-lite handshake', () => {
     expect(Array.from(aliceSession.sendingChain.key)).toEqual(Array.from(bobSession.receivingChain.key));
   });
 });
+
+import { ratchetEncrypt, ratchetDecrypt, DecryptError } from './e2eCrypto.js';
+
+function makeSessionPair() {
+  const alice = generateIdentity();
+  const bob = generateIdentity();
+  const bobPreKeys = generateOneTimePreKeys(1, 1);
+  const bundle = {
+    identityKey: bob.publicKey,
+    oneTimePreKey: { keyId: bobPreKeys[0].keyId, publicKey: bobPreKeys[0].publicKey }
+  };
+  const { session: aliceSession, handshakeHeader } = initSessionAsSender(alice, bundle);
+  const bobSession = initSessionAsReceiver(bob, bobPreKeys, handshakeHeader);
+  return { aliceSession, bobSession, handshakeHeader };
+}
+
+describe('ratchetEncrypt / ratchetDecrypt', () => {
+  it('round-trips a single message from Alice to Bob (first message, includes handshake header)', async () => {
+    await sodiumReady();
+    const { aliceSession, bobSession, handshakeHeader } = makeSessionPair();
+
+    const { ciphertext, header } = ratchetEncrypt(aliceSession, 'hello bob');
+    const fullHeader = { ...header, ...handshakeHeader };
+    const { plaintext } = ratchetDecrypt(bobSession, ciphertext, fullHeader);
+
+    expect(plaintext).toBe('hello bob');
+  });
+
+  it('round-trips multiple messages in one direction', async () => {
+    await sodiumReady();
+    const { aliceSession, bobSession, handshakeHeader } = makeSessionPair();
+    const msgs = ['first', 'second', 'third'];
+    const sent = msgs.map((m, i) => {
+      const { ciphertext, header } = ratchetEncrypt(aliceSession, m);
+      return { ciphertext, header: i === 0 ? { ...header, ...handshakeHeader } : header };
+    });
+    const received = sent.map(s => ratchetDecrypt(bobSession, s.ciphertext, s.header).plaintext);
+    expect(received).toEqual(msgs);
+  });
+
+  it('round-trips a reply, exercising the DH ratchet turn', async () => {
+    await sodiumReady();
+    const { aliceSession, bobSession, handshakeHeader } = makeSessionPair();
+
+    const first = ratchetEncrypt(aliceSession, 'hi bob');
+    const firstReceived = ratchetDecrypt(bobSession, first.ciphertext, { ...first.header, ...handshakeHeader });
+    expect(firstReceived.plaintext).toBe('hi bob');
+
+    const reply = ratchetEncrypt(bobSession, 'hi alice');
+    const replyReceived = ratchetDecrypt(aliceSession, reply.ciphertext, reply.header);
+    expect(replyReceived.plaintext).toBe('hi alice');
+
+    const second = ratchetEncrypt(aliceSession, 'how are you');
+    const secondReceived = ratchetDecrypt(bobSession, second.ciphertext, second.header);
+    expect(secondReceived.plaintext).toBe('how are you');
+  });
+
+  it('handles out-of-order delivery via skipped message keys', async () => {
+    await sodiumReady();
+    const { aliceSession, bobSession, handshakeHeader } = makeSessionPair();
+    const msgs = ['one', 'two', 'three'];
+    const sent = msgs.map((m, i) => {
+      const { ciphertext, header } = ratchetEncrypt(aliceSession, m);
+      return { ciphertext, header: i === 0 ? { ...header, ...handshakeHeader } : header };
+    });
+
+    // Deliver out of order: 3, 1, 2
+    const r3 = ratchetDecrypt(bobSession, sent[2].ciphertext, sent[2].header).plaintext;
+    const r1 = ratchetDecrypt(bobSession, sent[0].ciphertext, sent[0].header).plaintext;
+    const r2 = ratchetDecrypt(bobSession, sent[1].ciphertext, sent[1].header).plaintext;
+
+    expect([r1, r2, r3]).toEqual(msgs);
+  });
+
+  it('throws DecryptError on a tampered ciphertext', async () => {
+    await sodiumReady();
+    const { aliceSession, bobSession, handshakeHeader } = makeSessionPair();
+    const { ciphertext, header } = ratchetEncrypt(aliceSession, 'hello');
+    const tampered = ciphertext.slice(0, -4) + 'abcd';
+    expect(() => ratchetDecrypt(bobSession, tampered, { ...header, ...handshakeHeader }))
+      .toThrow(DecryptError);
+  });
+});
