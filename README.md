@@ -13,7 +13,7 @@ A premium, full-featured social media platform inspired by Instagram and Faceboo
 | **Database** | MongoDB + Mongoose |
 | **Real-time** | Socket.io |
 | **Auth** | JWT + HTTP-only cookies |
-| **Email** | Nodemailer (Gmail/SMTP) |
+| **Email** | Resend |
 | **Media** | Cloudinary |
 | **State** | Zustand + React Query |
 
@@ -172,11 +172,9 @@ cp .env.example .env
 MONGODB_URI=mongodb://localhost:27017/nexvibe
 JWT_SECRET=your_secret_key_min_32_chars
 
-# Email (Gmail App Password)
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USER=your@gmail.com
-EMAIL_PASS=your_app_password    # Google account → Security → App Passwords
+# Email (Resend)
+RESEND_API_KEY=re_your_resend_api_key    # resend.com → API Keys
+EMAIL_FROM=NexVibe <onboarding@resend.dev>
 
 # Cloudinary
 CLOUDINARY_CLOUD_NAME=your_cloud_name

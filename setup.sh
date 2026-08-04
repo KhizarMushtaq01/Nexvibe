@@ -39,7 +39,7 @@ if [ ! -f backend/.env ]; then
   echo "📝 Created backend/.env - PLEASE EDIT IT with your values:"
   echo "   - MONGODB_URI: Your MongoDB connection string"
   echo "   - JWT_SECRET: Any long random string (min 32 chars)"
-  echo "   - EMAIL_USER / EMAIL_PASS: Gmail + App Password"
+  echo "   - RESEND_API_KEY: From resend.com/api-keys"
   echo "   - CLOUDINARY_*: From cloudinary.com (free tier)"
   echo ""
   echo "   Then run: npm run dev"

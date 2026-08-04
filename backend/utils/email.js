@@ -1,19 +1,8 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.EMAIL_PORT) || 587,
-    secure: false,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    },
-    tls: { rejectUnauthorized: false }
-  });
-};
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const APP_NAME = process.env.APP_NAME || 'NexVibe';
 const APP_COLOR = '#E1306C';
@@ -70,13 +59,16 @@ const baseEmailTemplate = (content) => `
 
 const sendEmail = async ({ to, subject, html }) => {
   try {
-    const transporter = createTransporter();
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || `${APP_NAME} <noreply@nexvibe.com>`,
+    const { error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || `${APP_NAME} <onboarding@resend.dev>`,
       to,
       subject,
       html
     });
+    if (error) {
+      console.error('Email send error:', error.message);
+      return false;
+    }
     return true;
   } catch (error) {
     console.error('Email send error:', error.message);
