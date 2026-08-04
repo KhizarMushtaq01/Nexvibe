@@ -65,3 +65,39 @@ describe('generateOneTimePreKeys', () => {
     });
   });
 });
+
+import { initSessionAsSender, initSessionAsReceiver } from './e2eCrypto.js';
+
+describe('X3DH-lite handshake', () => {
+  it('sender and receiver derive the same initial root key and matching chain keys, with a one-time prekey', async () => {
+    await sodiumReady();
+    const alice = generateIdentity();
+    const bob = generateIdentity();
+    const bobPreKeys = generateOneTimePreKeys(1, 1);
+
+    const bundle = {
+      identityKey: bob.publicKey,
+      oneTimePreKey: { keyId: bobPreKeys[0].keyId, publicKey: bobPreKeys[0].publicKey }
+    };
+
+    const { session: aliceSession, handshakeHeader } = initSessionAsSender(alice, bundle);
+    const bobSession = initSessionAsReceiver(bob, bobPreKeys, handshakeHeader);
+
+    expect(Array.from(aliceSession.rootKey)).toEqual(Array.from(bobSession.rootKey));
+    // Alice's initial sending chain must equal Bob's initial receiving chain
+    expect(Array.from(aliceSession.sendingChain.key)).toEqual(Array.from(bobSession.receivingChain.key));
+  });
+
+  it('works when the recipient has no unused one-time prekey left', async () => {
+    await sodiumReady();
+    const alice = generateIdentity();
+    const bob = generateIdentity();
+
+    const bundle = { identityKey: bob.publicKey, oneTimePreKey: null };
+    const { session: aliceSession, handshakeHeader } = initSessionAsSender(alice, bundle);
+    const bobSession = initSessionAsReceiver(bob, [], handshakeHeader);
+
+    expect(Array.from(aliceSession.rootKey)).toEqual(Array.from(bobSession.rootKey));
+    expect(Array.from(aliceSession.sendingChain.key)).toEqual(Array.from(bobSession.receivingChain.key));
+  });
+});
