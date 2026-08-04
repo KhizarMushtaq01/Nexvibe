@@ -145,13 +145,27 @@ export const sendMessage = async (req, res) => {
     }
 
     const isEncrypted = encrypted === true || encrypted === 'true';
+
+    if (isEncrypted && !encryptedContent) {
+      return res.status(400).json({ success: false, message: 'encryptedContent is required when encrypted is true' });
+    }
+
+    let parsedEncryptedContent;
+    if (isEncrypted) {
+      try {
+        parsedEncryptedContent = JSON.parse(encryptedContent);
+      } catch {
+        return res.status(400).json({ success: false, message: 'encryptedContent must be valid JSON' });
+      }
+    }
+
     const message = await Message.create({
       conversation: req.params.conversationId,
       sender: req.user._id,
       type,
       content: isEncrypted ? undefined : content,
       encrypted: isEncrypted,
-      encryptedContent: isEncrypted ? JSON.parse(encryptedContent) : undefined,
+      encryptedContent: isEncrypted ? parsedEncryptedContent : undefined,
       media: Object.keys(mediaData).length ? mediaData : undefined,
       replyTo,
       sharedPost
