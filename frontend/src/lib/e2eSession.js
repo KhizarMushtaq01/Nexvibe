@@ -45,17 +45,32 @@ export async function getOrCreateSenderSession(conversationId, recipientUserId) 
   return { session, handshakeHeader };
 }
 
-// Builds a fresh receiver-side session from a handshake header, consuming the
-// named one-time prekey. Returns null when this device has no local identity.
-async function initReceiverSessionFromHeader(header) {
+// Builds a fresh receiver-side session from a handshake header. Returns null
+// when this device has no local identity.
+//
+// This deliberately does NOT consume the one-time prekey the header names: the
+// header is peer-controlled (the sender builds it client-side), so consuming
+// before the decrypt is verified would let a burst of garbage messages, each
+// naming a different keyId, permanently delete this device's private prekey
+// halves. The server still advertises those keyIds to OTHER users, whose
+// handshakes would then find no matching private key and become permanently
+// undecryptable. Callers must call consumePreKeyAfterSuccess() only once a
+// decrypt with the returned session has actually succeeded.
+async function buildReceiverSessionFromHeader(header) {
   const identity = await getLocalIdentity();
   if (!identity) return null;
   const myPreKeys = await getUnusedOneTimePreKeys();
-  const session = initSessionAsReceiver(identity, myPreKeys, header);
-  if (header.oneTimePreKeyId != null) {
-    await consumeOneTimePreKey(header.oneTimePreKeyId);
-  }
-  return session;
+  return initSessionAsReceiver(identity, myPreKeys, header);
+}
+
+// Deletes the local private half of a one-time prekey that has now been proven
+// used by a successfully decrypted handshake message. A storage failure here
+// must not turn an already-decrypted message into a decrypt error.
+async function consumePreKeyAfterSuccess(preKeyId) {
+  if (preKeyId == null) return;
+  try {
+    await consumeOneTimePreKey(preKeyId);
+  } catch { /* leaving a spent prekey behind is harmless; losing one is not */ }
 }
 
 // Decrypts one message object as received from the API/socket. Returns
@@ -74,16 +89,21 @@ export async function decryptIncomingMessage(conversationId, msg) {
 
       let session = await getSession(conversationId);
       const hadSession = !!session;
+      // Non-null only when the session below was just built from this header;
+      // the named prekey is deleted only after a decrypt has verified it.
+      let preKeyIdToConsume = null;
 
       if (!session) {
         if (!header.senderIdentityKey) return { decryptError: true };
-        session = await initReceiverSessionFromHeader(header);
+        session = await buildReceiverSessionFromHeader(header);
         if (!session) return { decryptError: true };
+        preKeyIdToConsume = header.oneTimePreKeyId ?? null;
       }
 
       try {
         const { plaintext, session: updatedSession } = ratchetDecrypt(session, msg.encryptedContent.ciphertext, header);
         await saveSession(conversationId, updatedSession);
+        await consumePreKeyAfterSuccess(preKeyIdToConsume);
         return { content: plaintext };
       } catch (err) {
         // Recovery path: the sender may have lost its session (e.g. a send that
@@ -92,13 +112,14 @@ export async function decryptIncomingMessage(conversationId, msg) {
         // prekey bundle. Our stale session can never decrypt that message, so if
         // this looks like a fresh handshake, rebuild the session from its header
         // and retry once. Only attempted when a session already existed -- on the
-        // no-session path we just built one from this very header, so retrying
-        // would only re-consume prekeys.
+        // no-session path we just built one from this very header, so a retry
+        // would rebuild the identical session and fail identically.
         if (!hadSession || !header.senderIdentityKey) throw err;
-        const freshSession = await initReceiverSessionFromHeader(header);
+        const freshSession = await buildReceiverSessionFromHeader(header);
         if (!freshSession) throw err;
         const { plaintext, session: updatedSession } = ratchetDecrypt(freshSession, msg.encryptedContent.ciphertext, header);
         await saveSession(conversationId, updatedSession);
+        await consumePreKeyAfterSuccess(header.oneTimePreKeyId ?? null);
         return { content: plaintext };
       }
     } catch (err) {
