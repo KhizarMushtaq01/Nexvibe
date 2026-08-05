@@ -6,13 +6,16 @@ import { getLocalIdentity, saveLocalIdentity, getUnusedOneTimePreKeys, saveOneTi
 
 const AuthContext = createContext(null);
 
+const PREKEY_BATCH = 20;
+const PREKEY_LOW_WATER = 5;
+
 async function ensureE2EKeys() {
   await sodiumReady();
   let identity = await getLocalIdentity();
   if (!identity) {
     identity = generateIdentity();
     await saveLocalIdentity(identity);
-    const preKeys = generateOneTimePreKeys(20, 1);
+    const preKeys = generateOneTimePreKeys(PREKEY_BATCH, 1);
     await saveOneTimePreKeys(preKeys);
     await e2eAPI.publishKeys({
       identityKey: identity.publicKey,
@@ -22,15 +25,33 @@ async function ensureE2EKeys() {
   }
 
   const unused = await getUnusedOneTimePreKeys();
-  if (unused.length < 5) {
-    const maxKeyId = unused.reduce((max, k) => Math.max(max, k.keyId), 0);
-    const morePreKeys = generateOneTimePreKeys(20, maxKeyId + 1);
-    await saveOneTimePreKeys(morePreKeys);
-    await e2eAPI.publishKeys({
-      identityKey: identity.publicKey,
-      oneTimePreKeys: morePreKeys.map(({ keyId, publicKey }) => ({ keyId, publicKey }))
-    });
-  }
+
+  // The local count is NOT a reliable proxy for the server-side pool: the
+  // server marks a prekey used as soon as a bundle is SERVED, while this
+  // device only deletes its private half when a handshake naming that keyId
+  // actually arrives. Sends that were fetched-but-never-delivered, or peers who
+  // never open the thread, drain the server pool with no local counterpart --
+  // and once it hits zero every new handshake toward us silently downgrades to
+  // the unauthenticated no-prekey fallback. So ask the server what it has left.
+  let server = null;
+  try {
+    const { data } = await e2eAPI.getKeyStatus();
+    if (typeof data?.remaining === 'number') server = data;
+  } catch { /* offline / older server: fall back to the local count alone */ }
+
+  const serverLow = server ? server.remaining < PREKEY_LOW_WATER : false;
+  if (unused.length >= PREKEY_LOW_WATER && !serverLow) return;
+
+  // Start above BOTH the local and the server-known highest keyId so a new
+  // batch can never collide with a keyId the server still holds.
+  const localMaxKeyId = unused.reduce((max, k) => Math.max(max, k.keyId), 0);
+  const startKeyId = Math.max(localMaxKeyId, server?.maxKeyId || 0) + 1;
+  const morePreKeys = generateOneTimePreKeys(PREKEY_BATCH, startKeyId);
+  await saveOneTimePreKeys(morePreKeys);
+  await e2eAPI.publishKeys({
+    identityKey: identity.publicKey,
+    oneTimePreKeys: morePreKeys.map(({ keyId, publicKey }) => ({ keyId, publicKey }))
+  });
 }
 
 export const AuthProvider = ({ children }) => {

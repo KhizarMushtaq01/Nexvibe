@@ -14,7 +14,7 @@ import {
 } from 'react-icons/fi';
 import { BsCheck2All, BsCheck2 } from 'react-icons/bs';
 import { ratchetEncrypt } from '../../lib/e2eCrypto';
-import { getOrCreateSenderSession, decryptIncomingMessage } from '../../lib/e2eSession';
+import { getOrCreateSenderSession, decryptIncomingMessage, withSessionLock } from '../../lib/e2eSession';
 import { saveSession } from '../../lib/e2eStorage';
 
 export default function MessagesPage() {
@@ -35,11 +35,19 @@ export default function MessagesPage() {
   const [searchResults, setSearchResults] = useState([]);
   const [isSending, setIsSending] = useState(false);
   const [reportingMessage, setReportingMessage] = useState(null);
+  // Server-authoritative encryption flag per conversation, learned from
+  // GET messages. The conversation list can be stale (encryption is activated
+  // lazily server-side the first time both participants have published keys),
+  // so this is OR-ed with the cached conversation flag.
+  const [serverEncrypted, setServerEncrypted] = useState({});
   const messagesEndRef = useRef(null);
   const fileRef = useRef(null);
   const typingTimer = useRef(null);
   const inputRef = useRef(null);
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // Encryption is activated lazily server-side, so trust either the cached
+  // conversation flag or the fresher one returned by GET messages.
+  const isActiveEncrypted = !!(activeConv?.isEncrypted || serverEncrypted[conversationId]);
 
   // Load conversations
   useEffect(() => {
@@ -71,17 +79,23 @@ export default function MessagesPage() {
     setMsgLoading(true);
     try {
       const { data } = await messageAPI.getMessages(id);
-      const decrypted = await Promise.all(
-        (data.messages || []).map(async msg => {
-          if (!msg.encrypted) return msg;
-          const isMine = (msg.sender?._id || msg.sender) === user?._id;
-          if (isMine) return { ...msg, content: '', decryptError: true, isOwnEncrypted: true };
-          const result = await decryptIncomingMessage(id, msg);
-          return result.decryptError
-            ? { ...msg, decryptError: true }
-            : { ...msg, content: result.content };
-        })
-      );
+      if (typeof data.isEncrypted === 'boolean') {
+        setServerEncrypted(prev => (prev[id] === data.isEncrypted ? prev : { ...prev, [id]: data.isEncrypted }));
+      }
+      // Decrypt SEQUENTIALLY: each message advances the shared ratchet session
+      // for this conversation, so message N+1 must not read the session before
+      // message N has written its update back (Promise.all would let every
+      // message read the same pre-handshake state and fail).
+      const decrypted = [];
+      for (const msg of (data.messages || [])) {
+        if (!msg.encrypted) { decrypted.push(msg); continue; }
+        const isMine = (msg.sender?._id || msg.sender) === user?._id;
+        if (isMine) { decrypted.push({ ...msg, content: '', decryptError: true, isOwnEncrypted: true }); continue; }
+        const result = await decryptIncomingMessage(id, msg);
+        decrypted.push(result.decryptError
+          ? { ...msg, decryptError: true }
+          : { ...msg, content: result.content });
+      }
       setMessages(decrypted);
     } catch {} finally { setMsgLoading(false); }
   };
@@ -131,28 +145,38 @@ export default function MessagesPage() {
     setText('');
     setIsSending(true);
     try {
-      const fd = new FormData();
-      fd.append('type', 'text');
-      let updatedSession = null;
+      const sendPlain = async () => {
+        const fd = new FormData();
+        fd.append('type', 'text');
+        fd.append('content', msgText);
+        const { data } = await messageAPI.sendMessage(conversationId, fd);
+        return data;
+      };
 
-      if (activeConv?.isEncrypted) {
+      // The whole read-session → encrypt → send → save-session span runs under
+      // the conversation's session lock, so a concurrent decrypt (thread load
+      // or socket receive) can't read/overwrite the session mid-span.
+      const sendEncrypted = () => withSessionLock(conversationId, async () => {
+        const fd = new FormData();
+        fd.append('type', 'text');
         const other = getOtherParticipant(activeConv);
+        // Fail the send (the caller restores the draft) rather than silently
+        // downgrading to plaintext if the conversation isn't loaded yet.
+        if (!other?._id) throw new Error('Conversation not ready for encryption');
         const { session, handshakeHeader } = await getOrCreateSenderSession(conversationId, other._id);
         const encryptedData = ratchetEncrypt(session, msgText);
-        updatedSession = encryptedData.session;
         const fullHeader = handshakeHeader ? { ...encryptedData.header, ...handshakeHeader } : encryptedData.header;
         fd.append('encrypted', 'true');
         fd.append('encryptedContent', JSON.stringify({ ciphertext: encryptedData.ciphertext, header: fullHeader }));
-      } else {
-        fd.append('content', msgText);
-      }
 
-      const { data } = await messageAPI.sendMessage(conversationId, fd);
+        const { data } = await messageAPI.sendMessage(conversationId, fd);
 
-      // Only persist session state after successful send to prevent orphaned handshakes
-      if (updatedSession) {
-        await saveSession(conversationId, updatedSession);
-      }
+        // Only persist session state after successful send to prevent orphaned handshakes
+        await saveSession(conversationId, encryptedData.session);
+        return data;
+      });
+
+      const data = isActiveEncrypted ? await sendEncrypted() : await sendPlain();
 
       setMessages(prev => [...prev, { ...data.message, content: msgText }]);
       setConversations(prev =>
@@ -191,11 +215,19 @@ export default function MessagesPage() {
   const openConversation = async (participantId) => {
     try {
       const { data } = await messageAPI.getOrCreate(participantId);
+      const fresh = data.conversation;
       setNewConvoModal(false);
       setSearchQuery('');
-      navigate(`/messages/${data.conversation._id}`);
-      if (!conversations.find(c => c._id === data.conversation._id)) {
-        setConversations(prev => [data.conversation, ...prev]);
+      navigate(`/messages/${fresh._id}`);
+      // Always merge the server's copy over the cached list entry -- this
+      // endpoint may have just flipped isEncrypted to true, and keeping the
+      // stale entry would leave the UI (and the send path) on plaintext.
+      setConversations(prev => prev.some(c => c._id === fresh._id)
+        ? prev.map(c => (c._id === fresh._id ? { ...c, ...fresh } : c))
+        : [fresh, ...prev]);
+      setActiveConv(prev => (prev && prev._id === fresh._id ? { ...prev, ...fresh } : prev));
+      if (typeof fresh.isEncrypted === 'boolean') {
+        setServerEncrypted(prev => ({ ...prev, [fresh._id]: fresh.isEncrypted }));
       }
     } catch { toast.error('Failed to open conversation'); }
   };
@@ -345,13 +377,16 @@ export default function MessagesPage() {
                     </p>
                   </div>
                 </Link>
-                {activeConv.isEncrypted ? (
+                {isActiveEncrypted ? (
                   <div className="hidden md:flex items-center gap-1.5 text-xs text-[var(--text-muted)] px-2">
-                    <span>🔒</span><span>End-to-end encrypted</span>
+                    {/* Photos and videos in this thread are NOT encrypted (out of
+                        scope for Phase 1), so the copy is deliberately narrowed
+                        to text messages. */}
+                    <span>🔒</span><span>Text messages are end-to-end encrypted</span>
                   </div>
                 ) : activeConv.type === 'direct' && (
                   <div className="hidden md:flex items-center gap-1.5 text-xs text-[var(--text-muted)] px-2">
-                    <span>Encryption starts once the other person opens NexVibe</span>
+                    <span>Encryption starts once the other person sets up NexVibe on a device</span>
                   </div>
                 )}
                 <div className="flex items-center gap-1 flex-shrink-0">
