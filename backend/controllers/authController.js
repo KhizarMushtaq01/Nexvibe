@@ -246,7 +246,12 @@ export const resetPassword = async (req, res) => {
 // @route   GET /api/auth/me
 export const getMe = async (req, res) => {
   try {
+    // `-e2e`: the client keeps its own key material in IndexedDB and never
+    // reads e2e from this endpoint, so echoing the prekey array (with its
+    // per-key `used` flags) back on every call only leaks session-count
+    // metadata and bloats a hot response.
     const user = await User.findById(req.user._id)
+      .select('-e2e')
       .populate('followers', 'username fullName avatar isVerified')
       .populate('following', 'username fullName avatar isVerified');
     res.json({ success: true, user });

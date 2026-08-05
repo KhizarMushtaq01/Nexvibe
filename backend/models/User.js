@@ -228,7 +228,17 @@ const userSchema = new mongoose.Schema({
     title: String,
     coverImage: String,
     stories: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Story' }]
-  }]
+  }],
+
+  // End-to-end encryption (Phase 1: direct-message text only)
+  e2e: {
+    identityKey: String, // base64 public X25519 key, set once per device that has ever logged in
+    oneTimePreKeys: [{
+      keyId: Number,
+      publicKey: String, // base64
+      used: { type: Boolean, default: false }
+    }]
+  }
 
 }, {
   timestamps: true,

@@ -4,6 +4,7 @@ import { messageAPI, searchAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import Avatar from '../../components/common/Avatar';
+import ReportModal from '../../components/common/ReportModal';
 import { format, formatDistanceToNow, isToday } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
@@ -12,6 +13,9 @@ import {
   FiMessageCircle, FiMic, FiPlusCircle
 } from 'react-icons/fi';
 import { BsCheck2All, BsCheck2 } from 'react-icons/bs';
+import { ratchetEncrypt } from '../../lib/e2eCrypto';
+import { getOrCreateSenderSession, decryptIncomingMessage, withSessionLock } from '../../lib/e2eSession';
+import { saveSession } from '../../lib/e2eStorage';
 
 export default function MessagesPage() {
   const { conversationId } = useParams();
@@ -29,11 +33,21 @@ export default function MessagesPage() {
   const [newConvoModal, setNewConvoModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [isSending, setIsSending] = useState(false);
+  const [reportingMessage, setReportingMessage] = useState(null);
+  // Server-authoritative encryption flag per conversation, learned from
+  // GET messages. The conversation list can be stale (encryption is activated
+  // lazily server-side the first time both participants have published keys),
+  // so this is OR-ed with the cached conversation flag.
+  const [serverEncrypted, setServerEncrypted] = useState({});
   const messagesEndRef = useRef(null);
   const fileRef = useRef(null);
   const typingTimer = useRef(null);
   const inputRef = useRef(null);
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // Encryption is activated lazily server-side, so trust either the cached
+  // conversation flag or the fresher one returned by GET messages.
+  const isActiveEncrypted = !!(activeConv?.isEncrypted || serverEncrypted[conversationId]);
 
   // Load conversations
   useEffect(() => {
@@ -65,20 +79,43 @@ export default function MessagesPage() {
     setMsgLoading(true);
     try {
       const { data } = await messageAPI.getMessages(id);
-      setMessages(data.messages || []);
+      if (typeof data.isEncrypted === 'boolean') {
+        setServerEncrypted(prev => (prev[id] === data.isEncrypted ? prev : { ...prev, [id]: data.isEncrypted }));
+      }
+      // Decrypt SEQUENTIALLY: each message advances the shared ratchet session
+      // for this conversation, so message N+1 must not read the session before
+      // message N has written its update back (Promise.all would let every
+      // message read the same pre-handshake state and fail).
+      const decrypted = [];
+      for (const msg of (data.messages || [])) {
+        if (!msg.encrypted) { decrypted.push(msg); continue; }
+        const isMine = (msg.sender?._id || msg.sender) === user?._id;
+        if (isMine) { decrypted.push({ ...msg, content: '', decryptError: true, isOwnEncrypted: true }); continue; }
+        const result = await decryptIncomingMessage(id, msg);
+        decrypted.push(result.decryptError
+          ? { ...msg, decryptError: true }
+          : { ...msg, content: result.content });
+      }
+      setMessages(decrypted);
     } catch {} finally { setMsgLoading(false); }
   };
 
   // Socket events
   useEffect(() => {
     if (!on) return;
-    const u1 = on('message:receive', msg => {
-      if (msg.conversation === conversationId) {
-        setMessages(prev => [...prev, msg]);
+    const u1 = on('message:receive', async msg => {
+      const isMine = (msg.sender?._id || msg.sender) === user?._id;
+      let displayMsg = msg;
+      if (msg.encrypted && !isMine) {
+        const result = await decryptIncomingMessage(msg.conversation, msg);
+        displayMsg = result.decryptError ? { ...msg, decryptError: true } : { ...msg, content: result.content };
+      }
+      if (msg.conversation === conversationId && !isMine) {
+        setMessages(prev => [...prev, displayMsg]);
       }
       setConversations(prev =>
         prev.map(c => c._id === msg.conversation
-          ? { ...c, lastMessage: msg, lastMessageAt: msg.createdAt }
+          ? { ...c, lastMessage: displayMsg, lastMessageAt: msg.createdAt }
           : c
         ).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt))
       );
@@ -103,22 +140,53 @@ export default function MessagesPage() {
 
   const handleSend = async (e) => {
     e?.preventDefault();
-    if (!text.trim() || !conversationId) return;
+    if (!text.trim() || !conversationId || isSending) return;
     const msgText = text;
     setText('');
+    setIsSending(true);
     try {
-      const fd = new FormData();
-      fd.append('content', msgText);
-      fd.append('type', 'text');
-      const { data } = await messageAPI.sendMessage(conversationId, fd);
-      setMessages(prev => [...prev, data.message]);
+      const sendPlain = async () => {
+        const fd = new FormData();
+        fd.append('type', 'text');
+        fd.append('content', msgText);
+        const { data } = await messageAPI.sendMessage(conversationId, fd);
+        return data;
+      };
+
+      // The whole read-session → encrypt → send → save-session span runs under
+      // the conversation's session lock, so a concurrent decrypt (thread load
+      // or socket receive) can't read/overwrite the session mid-span.
+      const sendEncrypted = () => withSessionLock(conversationId, async () => {
+        const fd = new FormData();
+        fd.append('type', 'text');
+        const other = getOtherParticipant(activeConv);
+        // Fail the send (the caller restores the draft) rather than silently
+        // downgrading to plaintext if the conversation isn't loaded yet.
+        if (!other?._id) throw new Error('Conversation not ready for encryption');
+        const { session, handshakeHeader } = await getOrCreateSenderSession(conversationId, other._id);
+        const encryptedData = ratchetEncrypt(session, msgText);
+        const fullHeader = handshakeHeader ? { ...encryptedData.header, ...handshakeHeader } : encryptedData.header;
+        fd.append('encrypted', 'true');
+        fd.append('encryptedContent', JSON.stringify({ ciphertext: encryptedData.ciphertext, header: fullHeader }));
+
+        const { data } = await messageAPI.sendMessage(conversationId, fd);
+
+        // Only persist session state after successful send to prevent orphaned handshakes
+        await saveSession(conversationId, encryptedData.session);
+        return data;
+      });
+
+      const data = isActiveEncrypted ? await sendEncrypted() : await sendPlain();
+
+      setMessages(prev => [...prev, { ...data.message, content: msgText }]);
       setConversations(prev =>
         prev.map(c => c._id === conversationId
-          ? { ...c, lastMessage: data.message, lastMessageAt: new Date().toISOString() }
+          ? { ...c, lastMessage: { ...data.message, content: msgText }, lastMessageAt: new Date().toISOString() }
           : c
         ).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt))
       );
     } catch { toast.error('Failed to send'); setText(msgText); }
+    finally { setIsSending(false); }
   };
 
   const handleFileSelect = async (e) => {
@@ -147,11 +215,19 @@ export default function MessagesPage() {
   const openConversation = async (participantId) => {
     try {
       const { data } = await messageAPI.getOrCreate(participantId);
+      const fresh = data.conversation;
       setNewConvoModal(false);
       setSearchQuery('');
-      navigate(`/messages/${data.conversation._id}`);
-      if (!conversations.find(c => c._id === data.conversation._id)) {
-        setConversations(prev => [data.conversation, ...prev]);
+      navigate(`/messages/${fresh._id}`);
+      // Always merge the server's copy over the cached list entry -- this
+      // endpoint may have just flipped isEncrypted to true, and keeping the
+      // stale entry would leave the UI (and the send path) on plaintext.
+      setConversations(prev => prev.some(c => c._id === fresh._id)
+        ? prev.map(c => (c._id === fresh._id ? { ...c, ...fresh } : c))
+        : [fresh, ...prev]);
+      setActiveConv(prev => (prev && prev._id === fresh._id ? { ...prev, ...fresh } : prev));
+      if (typeof fresh.isEncrypted === 'boolean') {
+        setServerEncrypted(prev => ({ ...prev, [fresh._id]: fresh.isEncrypted }));
       }
     } catch { toast.error('Failed to open conversation'); }
   };
@@ -166,6 +242,11 @@ export default function MessagesPage() {
     if (isToday(d)) return format(d, 'h:mm a');
     return formatDistanceToNow(d, { addSuffix: true });
   };
+
+  const allEncryptedUnreadable = (() => {
+    const relevant = messages.filter(m => m.encrypted && !m.isOwnEncrypted);
+    return relevant.length > 0 && relevant.every(m => m.decryptError);
+  })();
 
   const showList = !conversationId || !isMobile;
   const showChat = !!conversationId;
@@ -248,6 +329,7 @@ export default function MessagesPage() {
                         {lastMsg?.isUnsent ? 'Message unsent'
                           : lastMsg?.type === 'image' ? '📷 Photo'
                           : lastMsg?.type === 'video' ? '🎥 Video'
+                          : lastMsg?.encrypted ? '🔒 Encrypted message'
                           : lastMsg?.content || 'Start a conversation'}
                       </p>
                       {conv.unreadCount > 0 && (
@@ -295,6 +377,18 @@ export default function MessagesPage() {
                     </p>
                   </div>
                 </Link>
+                {isActiveEncrypted ? (
+                  <div className="hidden md:flex items-center gap-1.5 text-xs text-[var(--text-muted)] px-2">
+                    {/* Photos and videos in this thread are NOT encrypted (out of
+                        scope for Phase 1), so the copy is deliberately narrowed
+                        to text messages. */}
+                    <span>🔒</span><span>Text messages are end-to-end encrypted</span>
+                  </div>
+                ) : activeConv.type === 'direct' && (
+                  <div className="hidden md:flex items-center gap-1.5 text-xs text-[var(--text-muted)] px-2">
+                    <span>Encryption starts once the other person sets up NexVibe on a device</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button className="p-2 hover:bg-[var(--bg-tertiary)] rounded-full transition-colors">
                     <FiPhone className="w-5 h-5" />
@@ -330,14 +424,20 @@ export default function MessagesPage() {
                 })()}
               </div>
             ) : (
-              messages.map((msg, i) => {
+              <>
+                {allEncryptedUnreadable && (
+                  <div className="text-center text-xs text-[var(--text-muted)] py-2 px-4">
+                    You're on a new device — older encrypted messages from before today can't be shown here.
+                  </div>
+                )}
+                {messages.map((msg, i) => {
                 const isMine = (msg.sender?._id || msg.sender) === user?._id;
                 const prevMsg = messages[i - 1];
                 const showAvatar = !isMine && (msg.sender?._id || msg.sender) !== (prevMsg?.sender?._id || prevMsg?.sender);
                 const isRead = msg.readBy?.some(r => (r.user?._id || r.user) !== user?._id);
 
                 return (
-                  <div key={msg._id} className={`flex gap-2 items-end ${isMine ? 'flex-row-reverse' : 'flex-row'} animate-fade-in`}>
+                  <div key={msg._id} className={`group flex gap-2 items-end ${isMine ? 'flex-row-reverse' : 'flex-row'} animate-fade-in`}>
                     {/* Avatar space for group chats */}
                     {!isMine && (
                       <div className="w-7 flex-shrink-0">
@@ -349,6 +449,14 @@ export default function MessagesPage() {
                       {msg.isUnsent ? (
                         <div className="px-4 py-2.5 rounded-2xl text-sm italic text-[var(--text-muted)] border border-[var(--border)]">
                           Message unsent
+                        </div>
+                      ) : msg.isOwnEncrypted ? (
+                        <div className="px-4 py-2.5 rounded-2xl text-sm italic text-[var(--text-muted)] border border-[var(--border)]">
+                          You sent an encrypted message
+                        </div>
+                      ) : msg.decryptError ? (
+                        <div className="px-4 py-2.5 rounded-2xl text-sm italic text-[var(--text-muted)] border border-[var(--border)]">
+                          🔒 Couldn't decrypt this message
                         </div>
                       ) : msg.type === 'image' ? (
                         <img src={msg.media?.url} className="rounded-2xl max-w-[240px] max-h-[320px] object-cover cursor-pointer hover:opacity-90 transition-opacity" />
@@ -381,9 +489,20 @@ export default function MessagesPage() {
                         )}
                       </span>
                     </div>
+
+                    {!isMine && !msg.isUnsent && !msg.decryptError && msg.type === 'text' && (
+                      <button
+                        onClick={() => setReportingMessage(msg)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-[var(--text-muted)] hover:text-red-500 flex-shrink-0 self-center"
+                        title="Report message"
+                      >
+                        <FiMoreHorizontal className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 );
-              })
+              })}
+              </>
             )}
 
             {/* Typing indicator */}
@@ -499,6 +618,17 @@ export default function MessagesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Report message modal */}
+      {reportingMessage && (
+        <ReportModal
+          targetType="message"
+          targetId={reportingMessage._id}
+          label="Report this message"
+          evidenceContent={reportingMessage.content}
+          onClose={() => setReportingMessage(null)}
+        />
       )}
     </div>
   );

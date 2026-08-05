@@ -12,7 +12,7 @@ const REASONS = [
   { value: 'other', label: 'Other' },
 ];
 
-export default function ReportModal({ targetType, targetId, label, onClose }) {
+export default function ReportModal({ targetType, targetId, label, onClose, evidenceContent }) {
   const [reason, setReason] = useState(null);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -21,7 +21,11 @@ export default function ReportModal({ targetType, targetId, label, onClose }) {
     if (!reason) return;
     setSubmitting(true);
     try {
-      await reportAPI.createReport({ targetType, targetId, reason, note: reason === 'other' ? note : undefined });
+      await reportAPI.createReport({
+        targetType, targetId, reason,
+        note: reason === 'other' ? note : undefined,
+        ...(evidenceContent ? { evidenceContent } : {})
+      });
       toast.success('Report submitted. Thank you.');
       onClose();
     } catch (err) {

@@ -1,7 +1,33 @@
 import { Message, Conversation } from '../models/Message.js';
 import User from '../models/User.js';
+import Notification from '../models/Notification.js';
 import { uploadToCloudinary } from '../config/cloudinary.js';
+import { sendNewMessageEmail } from '../utils/email.js';
+import { getSocketId } from '../config/socket.js';
 import fs from 'fs';
+
+// Lazily activate E2E encryption on a direct conversation once BOTH
+// participants have published an identity key. Called from every path that
+// opens a thread (get-or-create AND plain message fetch) so a conversation
+// that predates key publication doesn't stay plaintext forever just because
+// the user reached it by clicking the conversation list.
+// Returns the (possibly updated) isEncrypted value.
+const activateEncryptionIfReady = async (conversation) => {
+  if (!conversation) return false;
+  if (conversation.isEncrypted) return true;
+  if (conversation.type !== 'direct') return false;
+
+  const participantIds = conversation.participants.map(p => p._id || p);
+  const withKeys = await User.countDocuments({
+    _id: { $in: participantIds },
+    'e2e.identityKey': { $exists: true, $nin: [null, ''] }
+  });
+  if (withKeys < participantIds.length) return false;
+
+  conversation.isEncrypted = true;
+  await conversation.save();
+  return true;
+};
 
 // @desc    Get or create conversation
 // @route   POST /api/messages/conversations
@@ -18,7 +44,7 @@ export const getOrCreateConversation = async (req, res) => {
       type: 'direct',
       participants: { $all: [req.user._id, participantId], $size: 2 }
     })
-      .populate('participants', 'username fullName avatar isVerified isOnline lastSeen')
+      .populate('participants', 'username fullName avatar isVerified isOnline lastSeen e2e.identityKey')
       .populate('lastMessage');
 
     if (!conversation) {
@@ -27,8 +53,10 @@ export const getOrCreateConversation = async (req, res) => {
         type: 'direct'
       });
       conversation = await Conversation.findById(conversation._id)
-        .populate('participants', 'username fullName avatar isVerified isOnline lastSeen');
+        .populate('participants', 'username fullName avatar isVerified isOnline lastSeen e2e.identityKey');
     }
+
+    await activateEncryptionIfReady(conversation);
 
     res.json({ success: true, conversation });
   } catch (error) {
@@ -76,6 +104,10 @@ export const getMessages = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
+    // Opening a thread is the other entry point (besides get-or-create) where
+    // encryption can become possible, so run the activation check here too.
+    const isEncrypted = await activateEncryptionIfReady(conversation);
+
     const messages = await Message.find({
       conversation: req.params.conversationId,
       deletedFor: { $ne: req.user._id }
@@ -102,7 +134,10 @@ export const getMessages = async (req, res) => {
     res.json({
       success: true,
       messages: messages.reverse(),
-      hasMore: page * limit < total
+      hasMore: page * limit < total,
+      // Server-authoritative: the client's cached conversation list may predate
+      // the lazy activation above.
+      isEncrypted
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -113,7 +148,7 @@ export const getMessages = async (req, res) => {
 // @route   POST /api/messages/conversations/:conversationId/messages
 export const sendMessage = async (req, res) => {
   try {
-    const { content, type = 'text', replyTo, sharedPost } = req.body;
+    const { content, type = 'text', replyTo, sharedPost, encrypted, encryptedContent } = req.body;
     const conversation = await Conversation.findById(req.params.conversationId);
 
     if (!conversation || !conversation.participants.includes(req.user._id)) {
@@ -136,11 +171,28 @@ export const sendMessage = async (req, res) => {
       fs.unlinkSync(req.file.path);
     }
 
+    const isEncrypted = encrypted === true || encrypted === 'true';
+
+    if (isEncrypted && !encryptedContent) {
+      return res.status(400).json({ success: false, message: 'encryptedContent is required when encrypted is true' });
+    }
+
+    let parsedEncryptedContent;
+    if (isEncrypted) {
+      try {
+        parsedEncryptedContent = JSON.parse(encryptedContent);
+      } catch {
+        return res.status(400).json({ success: false, message: 'encryptedContent must be valid JSON' });
+      }
+    }
+
     const message = await Message.create({
       conversation: req.params.conversationId,
       sender: req.user._id,
       type,
-      content,
+      content: isEncrypted ? undefined : content,
+      encrypted: isEncrypted,
+      encryptedContent: isEncrypted ? parsedEncryptedContent : undefined,
       media: Object.keys(mediaData).length ? mediaData : undefined,
       replyTo,
       sharedPost
@@ -160,9 +212,54 @@ export const sendMessage = async (req, res) => {
       io.to(req.params.conversationId).emit('message:receive', populated);
     }
 
+    // The message is persisted and broadcast at this point, so the send has
+    // succeeded -- answer the client BEFORE doing best-effort side work.
+    // A failure below must never turn into a 500: the sender's client only
+    // persists its ratchet state after a successful response, and discarding
+    // that state after the recipient already received the message permanently
+    // desynchronizes the session in that direction.
     res.status(201).json({ success: true, message: populated });
+
+    // Best-effort: in-app notifications for recipients, plus an email to
+    // offline recipients if this is the first unread message (avoid spamming
+    // back-to-back sends). Never throws into the request lifecycle.
+    try {
+      const recipients = conversation.participants.filter(
+        p => p.toString() !== req.user._id.toString()
+      );
+      for (const recipientId of recipients) {
+        const recipientUser = await User.findById(recipientId).select('email fullName settings.notifications.messages');
+        if (recipientUser?.settings?.notifications?.messages === false) continue;
+
+        await Notification.create({
+          recipient: recipientId,
+          sender: req.user._id,
+          type: 'message',
+          text: `${req.user.fullName} sent you a message`
+        });
+
+        const isOnline = !!getSocketId(recipientId.toString());
+        if (!isOnline) {
+          const priorUnread = await Message.countDocuments({
+            conversation: conversation._id,
+            sender: { $ne: recipientId },
+            'readBy.user': { $ne: recipientId },
+            isDeleted: false,
+            _id: { $ne: message._id }
+          });
+          if (priorUnread === 0 && recipientUser?.email) {
+            await sendNewMessageEmail(recipientUser, req.user.fullName);
+          }
+        }
+      }
+    } catch (notifyError) {
+      // Never log message content (plaintext or ciphertext).
+      console.error('Message notification side-effects failed:', notifyError.message);
+    }
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: error.message });
+    }
   }
 };
 
