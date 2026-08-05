@@ -1,5 +1,17 @@
 import User from '../models/User.js';
 
+// Server-side view of a user's one-time prekey pool. `remaining` is the number
+// of prekeys still available to hand out; `maxKeyId` is the highest keyId the
+// server has ever stored (used or not) so a client generating a new batch can
+// avoid re-using a keyId the server still holds.
+const preKeyPoolStatus = (e2e) => {
+  const keys = e2e?.oneTimePreKeys || [];
+  return {
+    remaining: keys.filter(k => !k.used).length,
+    maxKeyId: keys.reduce((max, k) => Math.max(max, k.keyId || 0), 0)
+  };
+};
+
 // @desc    Publish this device's identity key and a batch of one-time prekeys
 // @route   POST /api/e2e/keys
 export const publishKeys = async (req, res) => {
@@ -20,7 +32,26 @@ export const publishKeys = async (req, res) => {
     );
     await user.save();
 
-    res.json({ success: true, message: 'Keys published' });
+    // Report the server-side pool back so the client can reconcile: prekeys are
+    // marked used when a bundle is SERVED, which the publishing client never
+    // observes locally (it only deletes a local private half when a handshake
+    // naming that keyId actually arrives).
+    res.json({ success: true, message: 'Keys published', ...preKeyPoolStatus(user.e2e) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Report this user's own server-side one-time prekey pool status
+// @route   GET /api/e2e/keys/status
+export const getKeyStatus = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('e2e');
+    res.json({
+      success: true,
+      hasIdentityKey: !!user?.e2e?.identityKey,
+      ...preKeyPoolStatus(user?.e2e)
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

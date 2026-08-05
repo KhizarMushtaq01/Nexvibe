@@ -15,7 +15,7 @@ import fs from 'fs';
 export const getUserProfile = async (req, res) => {
   try {
     const user = await User.findOne({ username: req.params.username })
-      .select('-password -otp -otpExpiry -emailVerifyToken -passwordResetToken -loginHistory -activeSessions -twoFactorSecret -twoFactorBackupCodes')
+      .select('-password -otp -otpExpiry -emailVerifyToken -passwordResetToken -loginHistory -activeSessions -twoFactorSecret -twoFactorBackupCodes -e2e')
       .populate('followers', 'username fullName avatar isVerified')
       .populate('following', 'username fullName avatar isVerified');
 

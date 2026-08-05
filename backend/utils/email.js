@@ -8,6 +8,21 @@ const APP_NAME = process.env.APP_NAME || 'NexVibe';
 const APP_COLOR = '#E1306C';
 const APP_LOGO = '✦';
 
+// Escape cross-user free-text (e.g. another user's display name) before it is
+// interpolated into an email body -- fullName has no character-class
+// restriction, so unescaped interpolation lets any user render arbitrary HTML
+// (including links) inside a genuine, correctly-signed app email.
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+// Strip CR/LF (and collapse surrounding whitespace) from anything placed in a
+// mail header such as the subject line, to prevent header injection.
+const sanitizeHeaderText = (value) => String(value ?? '').replace(/[\r\n]+/g, ' ').trim();
+
 const baseEmailTemplate = (content) => `
 <!DOCTYPE html>
 <html>
@@ -122,13 +137,17 @@ export const sendOTPEmail = async (user, otp, purpose = 'login') => {
 };
 
 export const sendNewMessageEmail = async (user, senderName) => {
+  // senderName is another user's free-text display name: escape it for HTML and
+  // strip CR/LF before it reaches the subject header.
+  const safeSenderSubject = sanitizeHeaderText(senderName);
+  const safeSenderHtml = escapeHtml(safeSenderSubject);
   await sendEmail({
     to: user.email,
-    subject: `${senderName} sent you a message on ${APP_NAME}`,
+    subject: `${safeSenderSubject} sent you a message on ${APP_NAME}`,
     html: baseEmailTemplate(`
       <h2 class="title">New Message 💬</h2>
-      <p class="text">Hi <strong>${user.fullName}</strong>,</p>
-      <p class="text"><strong>${senderName}</strong> sent you a message on ${APP_NAME}.</p>
+      <p class="text">Hi <strong>${escapeHtml(user.fullName)}</strong>,</p>
+      <p class="text"><strong>${safeSenderHtml}</strong> sent you a message on ${APP_NAME}.</p>
       <div style="text-align:center">
         <a href="${process.env.FRONTEND_URL}/messages" class="button">Open Messages</a>
       </div>
