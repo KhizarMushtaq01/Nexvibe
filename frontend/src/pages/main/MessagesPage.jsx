@@ -13,7 +13,7 @@ import {
 } from 'react-icons/fi';
 import { BsCheck2All, BsCheck2 } from 'react-icons/bs';
 import { ratchetEncrypt } from '../../lib/e2eCrypto';
-import { getOrCreateSenderSession } from '../../lib/e2eSession';
+import { getOrCreateSenderSession, decryptIncomingMessage } from '../../lib/e2eSession';
 import { saveSession } from '../../lib/e2eStorage';
 
 export default function MessagesPage() {
@@ -69,20 +69,37 @@ export default function MessagesPage() {
     setMsgLoading(true);
     try {
       const { data } = await messageAPI.getMessages(id);
-      setMessages(data.messages || []);
+      const decrypted = await Promise.all(
+        (data.messages || []).map(async msg => {
+          if (!msg.encrypted) return msg;
+          const isMine = (msg.sender?._id || msg.sender) === user?._id;
+          if (isMine) return { ...msg, content: '', decryptError: true, isOwnEncrypted: true };
+          const result = await decryptIncomingMessage(id, msg);
+          return result.decryptError
+            ? { ...msg, decryptError: true }
+            : { ...msg, content: result.content };
+        })
+      );
+      setMessages(decrypted);
     } catch {} finally { setMsgLoading(false); }
   };
 
   // Socket events
   useEffect(() => {
     if (!on) return;
-    const u1 = on('message:receive', msg => {
-      if (msg.conversation === conversationId) {
-        setMessages(prev => [...prev, msg]);
+    const u1 = on('message:receive', async msg => {
+      const isMine = (msg.sender?._id || msg.sender) === user?._id;
+      let displayMsg = msg;
+      if (msg.encrypted && !isMine) {
+        const result = await decryptIncomingMessage(msg.conversation, msg);
+        displayMsg = result.decryptError ? { ...msg, decryptError: true } : { ...msg, content: result.content };
+      }
+      if (msg.conversation === conversationId && !isMine) {
+        setMessages(prev => [...prev, displayMsg]);
       }
       setConversations(prev =>
         prev.map(c => c._id === msg.conversation
-          ? { ...c, lastMessage: msg, lastMessageAt: msg.createdAt }
+          ? { ...c, lastMessage: displayMsg, lastMessageAt: msg.createdAt }
           : c
         ).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt))
       );
@@ -192,6 +209,11 @@ export default function MessagesPage() {
     return formatDistanceToNow(d, { addSuffix: true });
   };
 
+  const allEncryptedUnreadable = (() => {
+    const relevant = messages.filter(m => m.encrypted && !m.isOwnEncrypted);
+    return relevant.length > 0 && relevant.every(m => m.decryptError);
+  })();
+
   const showList = !conversationId || !isMobile;
   const showChat = !!conversationId;
 
@@ -273,6 +295,7 @@ export default function MessagesPage() {
                         {lastMsg?.isUnsent ? 'Message unsent'
                           : lastMsg?.type === 'image' ? '📷 Photo'
                           : lastMsg?.type === 'video' ? '🎥 Video'
+                          : lastMsg?.encrypted ? '🔒 Encrypted message'
                           : lastMsg?.content || 'Start a conversation'}
                       </p>
                       {conv.unreadCount > 0 && (
@@ -320,6 +343,15 @@ export default function MessagesPage() {
                     </p>
                   </div>
                 </Link>
+                {activeConv.isEncrypted ? (
+                  <div className="hidden md:flex items-center gap-1.5 text-xs text-[var(--text-muted)] px-2">
+                    <span>🔒</span><span>End-to-end encrypted</span>
+                  </div>
+                ) : activeConv.type === 'direct' && (
+                  <div className="hidden md:flex items-center gap-1.5 text-xs text-[var(--text-muted)] px-2">
+                    <span>Encryption starts once the other person opens NexVibe</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button className="p-2 hover:bg-[var(--bg-tertiary)] rounded-full transition-colors">
                     <FiPhone className="w-5 h-5" />
@@ -355,7 +387,13 @@ export default function MessagesPage() {
                 })()}
               </div>
             ) : (
-              messages.map((msg, i) => {
+              <>
+                {allEncryptedUnreadable && (
+                  <div className="text-center text-xs text-[var(--text-muted)] py-2 px-4">
+                    You're on a new device — older encrypted messages from before today can't be shown here.
+                  </div>
+                )}
+                {messages.map((msg, i) => {
                 const isMine = (msg.sender?._id || msg.sender) === user?._id;
                 const prevMsg = messages[i - 1];
                 const showAvatar = !isMine && (msg.sender?._id || msg.sender) !== (prevMsg?.sender?._id || prevMsg?.sender);
@@ -374,6 +412,14 @@ export default function MessagesPage() {
                       {msg.isUnsent ? (
                         <div className="px-4 py-2.5 rounded-2xl text-sm italic text-[var(--text-muted)] border border-[var(--border)]">
                           Message unsent
+                        </div>
+                      ) : msg.isOwnEncrypted ? (
+                        <div className="px-4 py-2.5 rounded-2xl text-sm italic text-[var(--text-muted)] border border-[var(--border)]">
+                          You sent an encrypted message
+                        </div>
+                      ) : msg.decryptError ? (
+                        <div className="px-4 py-2.5 rounded-2xl text-sm italic text-[var(--text-muted)] border border-[var(--border)]">
+                          🔒 Couldn't decrypt this message
                         </div>
                       ) : msg.type === 'image' ? (
                         <img src={msg.media?.url} className="rounded-2xl max-w-[240px] max-h-[320px] object-cover cursor-pointer hover:opacity-90 transition-opacity" />
@@ -408,7 +454,8 @@ export default function MessagesPage() {
                     </div>
                   </div>
                 );
-              })
+              })}
+              </>
             )}
 
             {/* Typing indicator */}
