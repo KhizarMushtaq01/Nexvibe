@@ -4,6 +4,7 @@ import { messageAPI, searchAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import Avatar from '../../components/common/Avatar';
+import ReportModal from '../../components/common/ReportModal';
 import { format, formatDistanceToNow, isToday } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
@@ -33,6 +34,7 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSending, setIsSending] = useState(false);
+  const [reportingMessage, setReportingMessage] = useState(null);
   const messagesEndRef = useRef(null);
   const fileRef = useRef(null);
   const typingTimer = useRef(null);
@@ -400,7 +402,7 @@ export default function MessagesPage() {
                 const isRead = msg.readBy?.some(r => (r.user?._id || r.user) !== user?._id);
 
                 return (
-                  <div key={msg._id} className={`flex gap-2 items-end ${isMine ? 'flex-row-reverse' : 'flex-row'} animate-fade-in`}>
+                  <div key={msg._id} className={`group flex gap-2 items-end ${isMine ? 'flex-row-reverse' : 'flex-row'} animate-fade-in`}>
                     {/* Avatar space for group chats */}
                     {!isMine && (
                       <div className="w-7 flex-shrink-0">
@@ -452,6 +454,16 @@ export default function MessagesPage() {
                         )}
                       </span>
                     </div>
+
+                    {!isMine && !msg.isUnsent && (
+                      <button
+                        onClick={() => setReportingMessage(msg)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-[var(--text-muted)] hover:text-red-500 flex-shrink-0 self-center"
+                        title="Report message"
+                      >
+                        <FiMoreHorizontal className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -571,6 +583,17 @@ export default function MessagesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Report message modal */}
+      {reportingMessage && (
+        <ReportModal
+          targetType="message"
+          targetId={reportingMessage._id}
+          label="Report this message"
+          evidenceContent={reportingMessage.content}
+          onClose={() => setReportingMessage(null)}
+        />
       )}
     </div>
   );
