@@ -9,7 +9,31 @@ const AuthContext = createContext(null);
 const PREKEY_BATCH = 20;
 const PREKEY_LOW_WATER = 5;
 
-async function ensureE2EKeys() {
+// Concurrent callers (React StrictMode's intentional double-invoke of mount
+// effects in dev, two tabs opened at once, or fetchMe firing again before a
+// prior run finished) must never race two independent runs of this function.
+// The "no local identity yet" branch below has no atomicity: two overlapping
+// runs would each generate a DIFFERENT random identity, save it to IndexedDB
+// (last write wins locally), and POST it to the server (last request wins
+// there too) -- and those two "last writes" are decided by unrelated async
+// races (disk vs. network), so they can disagree. The result is a client
+// that locally holds a private identity key that doesn't match the public
+// key it told the server about, which silently and permanently breaks
+// decryption for every message anyone sends it using that bundle. Dedupe
+// concurrent calls onto a single in-flight run to make this function
+// effectively atomic per page load.
+let ensureE2EKeysInFlight = null;
+
+function ensureE2EKeys() {
+  if (!ensureE2EKeysInFlight) {
+    ensureE2EKeysInFlight = runEnsureE2EKeys().finally(() => {
+      ensureE2EKeysInFlight = null;
+    });
+  }
+  return ensureE2EKeysInFlight;
+}
+
+async function runEnsureE2EKeys() {
   await sodiumReady();
   let identity = await getLocalIdentity();
   if (!identity) {

@@ -73,6 +73,22 @@ async function consumePreKeyAfterSuccess(preKeyId) {
   } catch { /* leaving a spent prekey behind is harmless; losing one is not */ }
 }
 
+// Per-message memo of decrypt results, keyed by message _id. Decrypting a
+// message advances the receiving ratchet chain and (on the first message of
+// a session) deletes the one-time prekey the handshake named -- both are
+// single-use side effects that must happen exactly once per message. But
+// this function gets called more than once for the *same* message in
+// perfectly ordinary circumstances: React StrictMode's dev-mode double
+// invoke of the thread-load effect, a GET-fetched history that includes a
+// message the socket also just delivered live, or a re-render that re-fetches
+// the same page of messages. withSessionLock only serializes those calls
+// against each other -- it doesn't make a second decrypt of an
+// already-consumed message succeed, since the ratchet has already moved past
+// it and (for a first message) its prekey is already gone. Memoizing by
+// message id makes every call after the first a cache hit instead of a
+// doomed re-decrypt.
+const decryptResultCache = new Map();
+
 // Decrypts one message object as received from the API/socket. Returns
 // { content } on success or { decryptError: true } on failure -- never
 // throws, so callers can render a fallback instead of crashing the thread.
@@ -81,11 +97,16 @@ async function consumePreKeyAfterSuccess(preKeyId) {
 // so concurrent callers (thread load, socket receive, send) can't interleave.
 export async function decryptIncomingMessage(conversationId, msg) {
   if (!msg.encrypted) return { content: msg.content };
+  if (msg._id && decryptResultCache.has(msg._id)) return decryptResultCache.get(msg._id);
 
   return withSessionLock(conversationId, async () => {
+    // Re-check inside the lock: a concurrent call for the same message may
+    // have just finished (and cached its result) while this call was queued.
+    if (msg._id && decryptResultCache.has(msg._id)) return decryptResultCache.get(msg._id);
+    const remember = (result) => { if (msg._id) decryptResultCache.set(msg._id, result); return result; };
     try {
       const header = msg.encryptedContent?.header;
-      if (!header) return { decryptError: true };
+      if (!header) return remember({ decryptError: true });
 
       let session = await getSession(conversationId);
       const hadSession = !!session;
@@ -94,9 +115,9 @@ export async function decryptIncomingMessage(conversationId, msg) {
       let preKeyIdToConsume = null;
 
       if (!session) {
-        if (!header.senderIdentityKey) return { decryptError: true };
+        if (!header.senderIdentityKey) return remember({ decryptError: true });
         session = await buildReceiverSessionFromHeader(header);
-        if (!session) return { decryptError: true };
+        if (!session) return remember({ decryptError: true });
         preKeyIdToConsume = header.oneTimePreKeyId ?? null;
       }
 
@@ -104,7 +125,7 @@ export async function decryptIncomingMessage(conversationId, msg) {
         const { plaintext, session: updatedSession } = ratchetDecrypt(session, msg.encryptedContent.ciphertext, header);
         await saveSession(conversationId, updatedSession);
         await consumePreKeyAfterSuccess(preKeyIdToConsume);
-        return { content: plaintext };
+        return remember({ content: plaintext });
       } catch (err) {
         // Recovery path: the sender may have lost its session (e.g. a send that
         // was persisted server-side but reported as failed, so the sender never
@@ -120,11 +141,11 @@ export async function decryptIncomingMessage(conversationId, msg) {
         const { plaintext, session: updatedSession } = ratchetDecrypt(freshSession, msg.encryptedContent.ciphertext, header);
         await saveSession(conversationId, updatedSession);
         await consumePreKeyAfterSuccess(header.oneTimePreKeyId ?? null);
-        return { content: plaintext };
+        return remember({ content: plaintext });
       }
     } catch (err) {
-      if (err instanceof DecryptError) return { decryptError: true };
-      return { decryptError: true };
+      if (err instanceof DecryptError) return remember({ decryptError: true });
+      return remember({ decryptError: true });
     }
   });
 }
