@@ -1,5 +1,5 @@
 import { initSessionAsSender } from './e2eCrypto';
-import { getSession, saveSession, getLocalIdentity } from './e2eStorage';
+import { getSession, getLocalIdentity } from './e2eStorage';
 import { e2eAPI } from '../services/api';
 
 // Returns the existing local session for this conversation if one exists,
@@ -8,6 +8,11 @@ import { e2eAPI } from '../services/api';
 // created here (the caller must merge it into the first ratchetEncrypt
 // header) -- an existing/resumed session has already exchanged handshake
 // info on an earlier message, so subsequent messages don't repeat it.
+//
+// IMPORTANT: This function does NOT persist new sessions to IndexedDB. The
+// caller is responsible for calling saveSession(conversationId, session)
+// after successfully sending the message. This prevents orphaned handshakes
+// if the send fails before reaching the server.
 export async function getOrCreateSenderSession(conversationId, recipientUserId) {
   const existing = await getSession(conversationId);
   if (existing) return { session: existing, handshakeHeader: null };
@@ -18,6 +23,6 @@ export async function getOrCreateSenderSession(conversationId, recipientUserId) 
   const { data } = await e2eAPI.getPreKeyBundle(recipientUserId);
   const bundle = { identityKey: data.identityKey, oneTimePreKey: data.oneTimePreKey };
   const { session, handshakeHeader } = initSessionAsSender(identity, bundle);
-  await saveSession(conversationId, session);
+  // Don't save new session here; caller must persist after successful send
   return { session, handshakeHeader };
 }

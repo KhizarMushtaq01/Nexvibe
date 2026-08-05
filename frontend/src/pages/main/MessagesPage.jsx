@@ -32,6 +32,7 @@ export default function MessagesPage() {
   const [newConvoModal, setNewConvoModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef(null);
   const fileRef = useRef(null);
   const typingTimer = useRef(null);
@@ -106,26 +107,34 @@ export default function MessagesPage() {
 
   const handleSend = async (e) => {
     e?.preventDefault();
-    if (!text.trim() || !conversationId) return;
+    if (!text.trim() || !conversationId || isSending) return;
     const msgText = text;
     setText('');
+    setIsSending(true);
     try {
       const fd = new FormData();
       fd.append('type', 'text');
+      let updatedSession = null;
 
       if (activeConv?.isEncrypted) {
         const other = getOtherParticipant(activeConv);
         const { session, handshakeHeader } = await getOrCreateSenderSession(conversationId, other._id);
-        const { ciphertext, header, session: updatedSession } = ratchetEncrypt(session, msgText);
-        await saveSession(conversationId, updatedSession);
-        const fullHeader = handshakeHeader ? { ...header, ...handshakeHeader } : header;
+        const encryptedData = ratchetEncrypt(session, msgText);
+        updatedSession = encryptedData.session;
+        const fullHeader = handshakeHeader ? { ...encryptedData.header, ...handshakeHeader } : encryptedData.header;
         fd.append('encrypted', 'true');
-        fd.append('encryptedContent', JSON.stringify({ ciphertext, header: fullHeader }));
+        fd.append('encryptedContent', JSON.stringify({ ciphertext: encryptedData.ciphertext, header: fullHeader }));
       } else {
         fd.append('content', msgText);
       }
 
       const { data } = await messageAPI.sendMessage(conversationId, fd);
+
+      // Only persist session state after successful send to prevent orphaned handshakes
+      if (updatedSession) {
+        await saveSession(conversationId, updatedSession);
+      }
+
       setMessages(prev => [...prev, { ...data.message, content: msgText }]);
       setConversations(prev =>
         prev.map(c => c._id === conversationId
@@ -134,6 +143,7 @@ export default function MessagesPage() {
         ).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt))
       );
     } catch { toast.error('Failed to send'); setText(msgText); }
+    finally { setIsSending(false); }
   };
 
   const handleFileSelect = async (e) => {
