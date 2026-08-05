@@ -166,6 +166,13 @@ function selfRatchetStep(session) {
 
 function skipMessageKeys(session, untilN) {
   if (!session.receivingChain.key || session.receivingChain.n >= untilN) return;
+  // untilN comes from unauthenticated wire data (the message header is only
+  // verified later, as AEAD associated data), so bound the work BEFORE the
+  // loop runs. Without this, a header claiming messageNumber: 1e9 drives a
+  // billion-iteration loop and a billion-entry cache pre-authentication.
+  if (untilN - session.receivingChain.n > MAX_SKIP) {
+    throw new DecryptError('Too many skipped messages');
+  }
   const remoteKeyB64 = sodium.to_base64(session.dhRemotePublicKey);
   while (session.receivingChain.n < untilN) {
     const { messageKey, nextChainKey } = chainStep(session.receivingChain.key);
