@@ -12,6 +12,9 @@ import {
   FiMessageCircle, FiMic, FiPlusCircle
 } from 'react-icons/fi';
 import { BsCheck2All, BsCheck2 } from 'react-icons/bs';
+import { ratchetEncrypt } from '../../lib/e2eCrypto';
+import { getOrCreateSenderSession } from '../../lib/e2eSession';
+import { saveSession } from '../../lib/e2eStorage';
 
 export default function MessagesPage() {
   const { conversationId } = useParams();
@@ -108,13 +111,25 @@ export default function MessagesPage() {
     setText('');
     try {
       const fd = new FormData();
-      fd.append('content', msgText);
       fd.append('type', 'text');
+
+      if (activeConv?.isEncrypted) {
+        const other = getOtherParticipant(activeConv);
+        const { session, handshakeHeader } = await getOrCreateSenderSession(conversationId, other._id);
+        const { ciphertext, header, session: updatedSession } = ratchetEncrypt(session, msgText);
+        await saveSession(conversationId, updatedSession);
+        const fullHeader = handshakeHeader ? { ...header, ...handshakeHeader } : header;
+        fd.append('encrypted', 'true');
+        fd.append('encryptedContent', JSON.stringify({ ciphertext, header: fullHeader }));
+      } else {
+        fd.append('content', msgText);
+      }
+
       const { data } = await messageAPI.sendMessage(conversationId, fd);
-      setMessages(prev => [...prev, data.message]);
+      setMessages(prev => [...prev, { ...data.message, content: msgText }]);
       setConversations(prev =>
         prev.map(c => c._id === conversationId
-          ? { ...c, lastMessage: data.message, lastMessageAt: new Date().toISOString() }
+          ? { ...c, lastMessage: { ...data.message, content: msgText }, lastMessageAt: new Date().toISOString() }
           : c
         ).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt))
       );
