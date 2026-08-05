@@ -9,6 +9,7 @@ const TYPE_TABS = [
   { value: '', label: 'All' },
   { value: 'post', label: 'Posts' },
   { value: 'user', label: 'Users' },
+  { value: 'message', label: 'Messages' },
 ];
 
 const STATUS_TABS = [
@@ -131,7 +132,7 @@ export default function AdminReports() {
                     {g.target.caption && <p className="text-xs text-[var(--text-secondary)] truncate">{g.target.caption}</p>}
                   </div>
                 </>
-              ) : (
+              ) : g.targetType === 'user' ? (
                 <>
                   <Avatar src={g.target.avatar} size={44} alt={g.target.fullName} />
                   <div className="flex-1 min-w-0">
@@ -146,6 +147,16 @@ export default function AdminReports() {
                     <p className="text-xs text-[var(--text-secondary)]">{g.target.fullName}</p>
                   </div>
                 </>
+              ) : (
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-[var(--text-muted)] mb-1">Reported message from @{g.target.sender?.username}</p>
+                  <blockquote className="text-sm italic border-l-2 border-[var(--border)] pl-2 mb-1">
+                    "{g.evidenceContent}"
+                  </blockquote>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    Reporter-submitted copy — not independently verified (message content is end-to-end encrypted)
+                  </p>
+                </div>
               )}
 
               <div className="flex-1 min-w-0">
@@ -168,7 +179,7 @@ export default function AdminReports() {
               </div>
 
               <div className={`flex flex-col gap-2 flex-shrink-0 ${status === 'resolved' ? 'items-end' : ''}`}>
-                {!g.targetMissing && (
+                {!g.targetMissing && g.targetType !== 'message' && (
                   <Link to={g.targetType === 'post' ? `/p/${g.targetId}` : `/${g.target.username}`} target="_blank"
                     className="text-xs text-center btn-outline px-3 py-1.5 rounded-lg">
                     {g.targetType === 'post' ? 'View Post' : 'View Profile'}
@@ -179,7 +190,7 @@ export default function AdminReports() {
                     <button onClick={() => handleResolve(g, 'dismiss')} className="text-xs btn-outline px-3 py-1.5 rounded-lg">
                       Dismiss
                     </button>
-                    {!g.targetMissing && (
+                    {!g.targetMissing && g.targetType !== 'message' && (
                       <button onClick={() => handleResolve(g, 'remove')} className="text-xs px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors">
                         {g.targetType === 'post' ? 'Remove Post' : 'Ban User'}
                       </button>

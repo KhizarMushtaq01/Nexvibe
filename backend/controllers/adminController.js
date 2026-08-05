@@ -229,6 +229,7 @@ export const getReports = async (req, res) => {
           reasons: { $push: '$reason' },
           reporterIds: { $push: '$reporter' },
           notes: { $push: '$note' },
+          evidenceContents: { $push: '$evidenceContent' },
           firstReportedAt: { $min: '$createdAt' },
           lastReportedAt: { $max: '$createdAt' },
           resolution: { $first: '$resolution' },
@@ -254,8 +255,10 @@ export const getReports = async (req, res) => {
       if (gType === 'post') {
         target = await Post.findById(targetId).populate('author', 'username fullName avatar');
         if (target?.isDeleted) target = null;
-      } else {
+      } else if (gType === 'user') {
         target = await User.findById(targetId).select('username fullName avatar isBanned');
+      } else {
+        target = await Message.findById(targetId).populate('sender', 'username fullName avatar');
       }
       if (!target) targetMissing = true;
 
@@ -273,6 +276,7 @@ export const getReports = async (req, res) => {
         reasonCounts,
         reporters,
         notes,
+        evidenceContent: (g.evidenceContents || []).find(Boolean) || null,
         firstReportedAt: g.firstReportedAt,
         lastReportedAt: g.lastReportedAt,
         resolution: g.resolution,
@@ -293,11 +297,14 @@ export const getReports = async (req, res) => {
 export const resolveReport = async (req, res) => {
   try {
     const { targetType, targetId, action } = req.body;
-    if (!['post', 'user'].includes(targetType)) {
+    if (!['post', 'user', 'message'].includes(targetType)) {
       return res.status(400).json({ success: false, message: 'Invalid targetType' });
     }
     if (!['dismiss', 'remove'].includes(action)) {
       return res.status(400).json({ success: false, message: 'Invalid action' });
+    }
+    if (targetType === 'message' && action === 'remove') {
+      return res.status(400).json({ success: false, message: 'Messages can only be dismissed, not removed' });
     }
 
     let resolution = 'dismissed';
