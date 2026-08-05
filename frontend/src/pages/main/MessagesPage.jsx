@@ -455,7 +455,7 @@ export default function MessagesPage() {
                       </span>
                     </div>
 
-                    {!isMine && !msg.isUnsent && (
+                    {!isMine && !msg.isUnsent && !msg.decryptError && msg.type === 'text' && (
                       <button
                         onClick={() => setReportingMessage(msg)}
                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-[var(--text-muted)] hover:text-red-500 flex-shrink-0 self-center"
