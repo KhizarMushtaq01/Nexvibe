@@ -4,17 +4,19 @@ import { postAPI, userAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import ReportModal from '../common/ReportModal';
+import { useConfirm } from '../../context/DialogContext';
 
 export default function PostOptionsMenu({ post, onClose, onDelete, onUpdate }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const confirmDialog = useConfirm();
   const isOwn = post.author?._id === user?._id || post.author === user?._id;
   const [reportTarget, setReportTarget] = useState(null); // null | 'post' | 'author'
 
   const actions = isOwn ? [
     {
       label: 'Delete', danger: true, onClick: async () => {
-        if (!window.confirm('Delete this post? This cannot be undone.')) return;
+        if (!(await confirmDialog({ message: 'Delete this post? This cannot be undone.', danger: true, confirmLabel: 'Delete' }))) return;
         try { await postAPI.deletePost(post._id); toast.success('Post deleted'); onDelete?.(); }
         catch { toast.error('Failed to delete'); }
       }

@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SocketProvider } from './context/SocketContext';
+import { DialogProvider } from './context/DialogContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HelmetProvider } from 'react-helmet-async';
 import MainLayout from './components/layout/MainLayout';
@@ -146,20 +147,22 @@ export default function App() {
           <AuthProvider>
             <SocketProvider>
               <BrowserRouter>
-                <AppRoutes />
-                <Toaster 
-                  position="top-center" 
-                  toastOptions={{ 
-                    duration: 3000, 
-                    style: { 
-                      borderRadius: '12px', 
-                      fontSize: '14px',
-                      background: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      border: '1px solid var(--border)'
-                    } 
-                  }} 
-                />
+                <DialogProvider>
+                  <AppRoutes />
+                  <Toaster
+                    position="top-center"
+                    toastOptions={{
+                      duration: 3000,
+                      style: {
+                        borderRadius: '12px',
+                        fontSize: '14px',
+                        background: 'var(--bg-primary)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border)'
+                      }
+                    }}
+                  />
+                </DialogProvider>
               </BrowserRouter>
             </SocketProvider>
           </AuthProvider>
