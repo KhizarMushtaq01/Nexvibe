@@ -5,6 +5,7 @@ import StoriesBar from '../../components/story/StoriesBar';
 import SuggestedUsers from '../../components/common/SuggestedUsers';
 import PostSkeleton from '../../components/common/PostSkeleton';
 import { useInView } from 'react-intersection-observer';
+import { FiCamera } from 'react-icons/fi';
 
 export default function FeedPage() {
   const [posts, setPosts] = useState([]);
@@ -65,7 +66,7 @@ export default function FeedPage() {
 function EmptyFeed() {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center px-4">
-      <div className="text-6xl mb-5">📸</div>
+      <FiCamera className="w-14 h-14 mb-5 text-[var(--text-muted)]" />
       <h2 className="text-2xl font-bold mb-2">Welcome to NexVibe</h2>
       <p className="text-sm text-[var(--text-secondary)] max-w-xs">Follow people to see their photos and videos here in your feed.</p>
     </div>

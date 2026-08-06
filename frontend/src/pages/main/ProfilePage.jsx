@@ -219,7 +219,7 @@ export default function ProfilePage() {
             </div>
           ) : posts.length === 0 ? (
             <div className="text-center py-20">
-              <p className="text-4xl mb-3">📷</p>
+              <FiCamera className="w-10 h-10 mx-auto mb-3 text-[var(--text-muted)]" />
               <p className="font-bold text-lg mb-1">{isOwn ? 'Share Photos' : 'No Posts Yet'}</p>
               <p className="text-sm text-[var(--text-secondary)]">
                 {isOwn ? 'When you share photos, they will appear here.' : `${profile.username} hasn't posted yet.`}
