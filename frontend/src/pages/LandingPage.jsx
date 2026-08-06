@@ -43,6 +43,7 @@ const NAV_LINKS = [
   { label: 'Reels', href: '#reels' },
   { label: 'Community', path: '/community' },
   { label: 'Security', path: '/security' },
+  { label: 'Download', path: '/download' },
 ];
 
 const STATS = [

@@ -41,6 +41,7 @@ import Blog from './pages/Blog';
 import BlogPostDetails from './pages/BlogPostDetails';
 import Community from './pages/Community';
 import Security from './pages/Security';
+import Download from './pages/Download';
 import NotFoundPage from './pages/NotFoundPage';
 import LoadingScreen from './components/common/LoadingScreen';
 import './styles/index.css';
@@ -91,6 +92,7 @@ function AppRoutes() {
       <Route path="/blog/:id" element={<BlogPostDetails />} />
       <Route path="/community" element={<Community />} />
       <Route path="/security" element={<Security />} />
+      <Route path="/download" element={<Download />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
