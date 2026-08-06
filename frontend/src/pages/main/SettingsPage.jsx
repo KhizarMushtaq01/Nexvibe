@@ -315,8 +315,8 @@ function PermissionRow({ icon, label, state, onTest }) {
 }
 
 function AppPermissionsSection() {
-  const [camera, setCamera] = useState('unsupported');
-  const [mic, setMic] = useState('unsupported');
+  const [camera, setCamera] = useState('unknown');
+  const [mic, setMic] = useState('unknown');
   const [notifications, setNotifications] = useState(() => {
     if (typeof Notification === 'undefined') return 'unsupported';
     return Notification.permission === 'default' ? 'prompt' : Notification.permission;
@@ -331,7 +331,7 @@ function AppPermissionsSection() {
         setter(status.state);
       } catch {
         // Safari doesn't support querying camera/microphone this way;
-        // state stays 'unsupported' until the user clicks Test.
+        // state stays 'unknown' until the user clicks Test.
       }
     };
     readState('camera', setCamera);
@@ -353,7 +353,7 @@ function AppPermissionsSection() {
         // NotFoundError (no device), NotReadableError (device busy elsewhere),
         // OverconstrainedError, etc. are transient/environmental, not a real
         // permission denial — keep the Test button available for retry.
-        setter('unsupported');
+        setter('unknown');
       }
     }
   };
@@ -367,7 +367,7 @@ function AppPermissionsSection() {
   const testStorage = async () => {
     if (!navigator.storage?.persist) return setStorage('unsupported');
     const persisted = await navigator.storage.persist();
-    setStorage(persisted ? 'granted' : 'denied');
+    setStorage(persisted ? 'granted' : 'prompt');
   };
 
   return (

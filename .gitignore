@@ -1011,6 +1011,7 @@ build/
 .next/
 out/
 dist-ssr/
+dev-dist/
 
 # ANY level build folders (includes public/dist, public/build, etc.)
 **/dist

@@ -14,6 +14,10 @@ describe('permissionLabel', () => {
     expect(permissionLabel('prompt').text).toBe('Not asked');
   });
 
+  it('maps unknown to Unknown — tap Test', () => {
+    expect(permissionLabel('unknown').text).toBe('Unknown — tap Test');
+  });
+
   it('falls back to Not supported for an unknown state', () => {
     expect(permissionLabel('bogus').text).toBe('Not supported');
   });
