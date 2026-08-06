@@ -135,7 +135,7 @@ export default function MainLayout() {
               <NavLink to="/settings" onClick={() => setShowMore(false)} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-tertiary)] text-sm transition-colors">
                 <FiSettings className="w-4 h-4" /> Settings
               </NavLink>
-              {['admin','moderator'].includes(user?.role) && (
+              {['admin','moderator','superadmin'].includes(user?.role) && (
                 <NavLink to="/admin" onClick={() => setShowMore(false)} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-tertiary)] text-sm transition-colors">
                   <MdOutlineAdminPanelSettings className="w-4 h-4" /> Admin Panel
                 </NavLink>

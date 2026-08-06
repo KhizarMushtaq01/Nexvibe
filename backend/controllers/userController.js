@@ -6,7 +6,8 @@ import {
   sendProfileUpdatedEmail,
   sendEmailChangedEmail,
   sendAvatarChangedEmail,
-  sendOTPEmail
+  sendOTPEmail,
+  sendAccountDeactivatedEmail
 } from '../utils/email.js';
 import fs from 'fs';
 
@@ -474,6 +475,8 @@ export const deactivateAccount = async (req, res) => {
     user.isDeactivated = true;
     user.deactivatedAt = new Date();
     await user.save();
+
+    await sendAccountDeactivatedEmail(user);
 
     res.cookie('token', '', { expires: new Date(0), httpOnly: true });
     res.json({ success: true, message: 'Account deactivated' });

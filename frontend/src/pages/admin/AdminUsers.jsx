@@ -82,8 +82,8 @@ export default function AdminUsers() {
     });
   };
 
-  const roleColor = { admin: 'text-red-500', moderator: 'text-orange-500', user: 'text-[var(--text-secondary)]' };
-  const roleTag = { admin: 'bg-red-50 dark:bg-red-950/20 text-red-600', moderator: 'bg-orange-50 dark:bg-orange-950/20 text-orange-600', user: 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]' };
+  const roleColor = { superadmin: 'text-purple-500', admin: 'text-red-500', moderator: 'text-orange-500', user: 'text-[var(--text-secondary)]' };
+  const roleTag = { superadmin: 'bg-purple-50 dark:bg-purple-950/20 text-purple-600', admin: 'bg-red-50 dark:bg-red-950/20 text-red-600', moderator: 'bg-orange-50 dark:bg-orange-950/20 text-orange-600', user: 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]' };
 
   return (
     <div className="p-6">
@@ -190,7 +190,7 @@ export default function AdminUsers() {
                   className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg transition-colors" title={u.isBanned ? 'Unban' : 'Ban'}>
                   <FiSlash className={`w-4 h-4 ${u.isBanned ? 'text-red-500' : 'text-[var(--text-muted)]'}`} />
                 </button>
-                {u.role !== 'admin' && (
+                {u.role !== 'admin' && u.role !== 'superadmin' && (
                   <button onClick={() => handleDelete(u._id)}
                     className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg transition-colors" title="Delete">
                     <FiTrash2 className="w-4 h-4 text-red-400 hover:text-red-500" />

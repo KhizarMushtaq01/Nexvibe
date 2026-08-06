@@ -3,8 +3,8 @@ import * as admin from '../controllers/adminController.js';
 import { protect, authorize } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
-const isAdmin = [protect, authorize('admin', 'moderator')];
-const adminOnly = [protect, authorize('admin')];
+const isAdmin = [protect, authorize('admin', 'moderator', 'superadmin')];
+const adminOnly = [protect, authorize('admin', 'superadmin')];
 
 router.get('/dashboard', ...isAdmin, admin.getDashboardStats);
 router.get('/users', ...isAdmin, admin.getAllUsers);

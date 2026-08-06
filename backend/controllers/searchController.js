@@ -1,6 +1,15 @@
 import User from '../models/User.js';
 import Post from '../models/Post.js';
 
+// Role hierarchy: each role can search its own tier and every tier below it.
+// user < moderator (team/support) < admin < superadmin
+const ROLE_LEVELS = { user: 0, moderator: 1, admin: 2, superadmin: 3 };
+
+const getVisibleRoles = (role) => {
+  const level = ROLE_LEVELS[role] ?? 0;
+  return Object.keys(ROLE_LEVELS).filter((r) => ROLE_LEVELS[r] <= level);
+};
+
 export const search = async (req, res) => {
   try {
     const { q, type = 'all', page = 1, limit = 20 } = req.query;
@@ -15,7 +24,8 @@ export const search = async (req, res) => {
       results.users = await User.find({
         $or: [{ username: regex }, { fullName: regex }],
         isBanned: false,
-        isDeactivated: false
+        isDeactivated: false,
+        role: { $in: getVisibleRoles(req.user?.role) }
       })
         .select('username fullName avatar isVerified bio followers')
         .limit(type === 'users' ? parseInt(limit) : 5);
@@ -63,7 +73,8 @@ export const getSearchSuggestions = async (req, res) => {
         { username: { $regex: `^${q}`, $options: 'i' } },
         { fullName: { $regex: q, $options: 'i' } }
       ],
-      isBanned: false
+      isBanned: false,
+      role: { $in: getVisibleRoles(req.user?.role) }
     })
       .select('username fullName avatar isVerified')
       .limit(8);

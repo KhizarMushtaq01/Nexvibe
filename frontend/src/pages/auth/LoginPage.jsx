@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiEye, FiPhone } from 'react-icons/fi';
+import { FiEye, FiPhone, FiSun, FiMoon } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -52,7 +52,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[var(--bg-secondary)] flex items-center justify-center p-4">
       {/* Theme toggle */}
       <button onClick={toggleTheme} className="fixed top-4 right-4 p-2 rounded-full hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]">
-        {isDark ? '☀️' : '🌙'}
+        {isDark ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
       </button>
 
       <div className="w-full max-w-[350px]">

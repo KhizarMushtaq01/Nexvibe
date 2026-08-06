@@ -90,7 +90,7 @@ export const banUser = async (req, res) => {
     const { reason, duration } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    if (user.role === 'admin') return res.status(403).json({ success: false, message: 'Cannot ban admin' });
+    if (user.role === 'admin' || user.role === 'superadmin') return res.status(403).json({ success: false, message: 'Cannot ban admin' });
 
     user.isBanned = true;
     user.banReason = reason || 'Policy violation';
@@ -127,11 +127,20 @@ export const verifyUser = async (req, res) => {
 export const changeUserRole = async (req, res) => {
   try {
     const { role } = req.body;
-    if (!['user', 'moderator', 'admin'].includes(role)) {
+    if (!['user', 'moderator', 'admin', 'superadmin'].includes(role)) {
       return res.status(400).json({ success: false, message: 'Invalid role' });
     }
-    const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true });
-    res.json({ success: true, user });
+    const target = await User.findById(req.params.id);
+    if (!target) return res.status(404).json({ success: false, message: 'User not found' });
+
+    // Only a superadmin can grant or revoke the superadmin role.
+    if ((role === 'superadmin' || target.role === 'superadmin') && req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Only a superadmin can manage the superadmin role.' });
+    }
+
+    target.role = role;
+    await target.save();
+    res.json({ success: true, user: target });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -181,7 +190,7 @@ export const deleteUserAdmin = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    if (user.role === 'admin') return res.status(403).json({ success: false, message: 'Cannot delete admin user' });
+    if (user.role === 'admin' || user.role === 'superadmin') return res.status(403).json({ success: false, message: 'Cannot delete admin user' });
 
     await Post.deleteMany({ author: user._id });
     await User.findByIdAndDelete(req.params.id);
@@ -318,7 +327,7 @@ export const resolveReport = async (req, res) => {
     let userToBan = null;
     if (action === 'remove' && targetType === 'user') {
       userToBan = await User.findById(targetId);
-      if (userToBan?.role === 'admin') {
+      if (userToBan?.role === 'admin' || userToBan?.role === 'superadmin') {
         return res.status(403).json({ success: false, message: 'Cannot ban admin' });
       }
     }

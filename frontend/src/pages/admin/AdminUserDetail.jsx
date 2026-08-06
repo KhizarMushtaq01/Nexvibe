@@ -6,8 +6,10 @@ import { adminAPI } from '../../services/api';
 import Avatar from '../../components/common/Avatar';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
 export default function AdminUserDetail() {
+  const { user: currentUser } = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -71,7 +73,7 @@ export default function AdminUserDetail() {
 
             <div className="flex justify-center gap-1 mb-4">
               <span className={`text-xs px-2 py-1 rounded-full font-medium
-                ${user.role === 'admin' ? 'bg-red-50 dark:bg-red-950/20 text-red-600' : user.role === 'moderator' ? 'bg-orange-50 text-orange-600' : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'}`}>
+                ${user.role === 'superadmin' ? 'bg-purple-50 dark:bg-purple-950/20 text-purple-600' : user.role === 'admin' ? 'bg-red-50 dark:bg-red-950/20 text-red-600' : user.role === 'moderator' ? 'bg-orange-50 text-orange-600' : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'}`}>
                 {user.role}
               </span>
               <span className={`text-xs px-2 py-1 rounded-full font-medium
@@ -141,7 +143,7 @@ export default function AdminUserDetail() {
               <div className="col-span-2">
                 <p className="text-xs text-[var(--text-muted)] mb-2 font-medium">Change role</p>
                 <div className="flex gap-2">
-                  {['user', 'moderator', 'admin'].map(role => (
+                  {(currentUser?.role === 'superadmin' ? ['user', 'moderator', 'admin', 'superadmin'] : ['user', 'moderator', 'admin']).map(role => (
                     <button key={role} onClick={() => handleRole(role)}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors capitalize
                         ${user.role === role ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--border)]'}`}>
@@ -150,7 +152,7 @@ export default function AdminUserDetail() {
                   ))}
                 </div>
               </div>
-              {user.role !== 'admin' && (
+              {user.role !== 'admin' && user.role !== 'superadmin' && (
                 <button onClick={handleDelete}
                   className="col-span-2 py-2.5 px-4 rounded-xl text-sm font-semibold border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
                   🗑 Delete account permanently

@@ -75,7 +75,7 @@ const userSchema = new mongoose.Schema({
   // Account type & status
   role: {
     type: String,
-    enum: ['user', 'admin', 'moderator'],
+    enum: ['user', 'moderator', 'admin', 'superadmin'],
     default: 'user'
   },
   accountType: {

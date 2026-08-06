@@ -66,7 +66,7 @@ const AdminRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
-  if (!['admin', 'moderator'].includes(user.role)) return <Navigate to="/feed" replace />;
+  if (!['admin', 'moderator', 'superadmin'].includes(user.role)) return <Navigate to="/feed" replace />;
   return children;
 };
 
