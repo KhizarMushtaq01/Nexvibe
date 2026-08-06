@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FiEye, FiPhone, FiSun, FiMoon } from 'react-icons/fi';
+import { FiEye, FiEyeOff, FiPhone, FiSun, FiMoon } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -7,9 +7,10 @@ import { FcGoogle } from 'react-icons/fc';
 import { FaFacebook, FaApple } from 'react-icons/fa6';
 import { FaXTwitter } from "react-icons/fa6";
 import { useTheme } from '../../context/ThemeContext';
+import { triggerGoogleLogin } from '../../lib/googleAuth';
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { register, oauthLogin } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -59,6 +60,29 @@ export default function RegisterPage() {
   const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500'];
   const strengthLabels = ['Weak', 'Fair', 'Good', 'Strong'];
 
+  const oauthProviders = [
+    { icon: <FcGoogle className="w-5 h-5" />, label: 'Continue with Google', provider: 'google' },
+    { icon: <FaFacebook className="w-5 h-5 text-[#1877F2]" />, label: 'Continue with Facebook', provider: 'facebook' },
+    { icon: <FaApple className="w-5 h-5" />, label: 'Continue with Apple', provider: 'apple' },
+    { icon: <FaXTwitter className="w-5 h-5" />, label: 'Continue with X', provider: 'twitter' },
+    { icon: <FiPhone className="w-5 h-5 text-green-500" />, label: 'Continue with Phone', provider: 'phone' },
+  ];
+
+  const handleOAuth = async (provider) => {
+    if (provider === 'google') {
+      try {
+        const accessToken = await triggerGoogleLogin();
+        await oauthLogin(provider, { token: accessToken });
+        toast.success('Welcome to NexVibe!');
+        navigate('/');
+      } catch (err) {
+        toast.error(err.response?.data?.message || err.message || 'Google sign-in failed');
+      }
+      return;
+    }
+    toast('OAuth requires backend configuration', { icon: 'ℹ️' });
+  };
+
   return (
     <div className="min-h-screen bg-[var(--bg-secondary)] flex items-center justify-center p-4">
       <button onClick={toggleTheme} className="fixed top-4 right-4 p-2 rounded-full hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]">
@@ -76,14 +100,8 @@ export default function RegisterPage() {
 
           {/* OAuth buttons */}
           <div className="space-y-2 mb-4">
-            {[
-              { icon: <FcGoogle className="w-5 h-5" />, label: 'Continue with Google' },
-              { icon: <FaFacebook className="w-5 h-5 text-[#1877F2]" />, label: 'Continue with Facebook' },
-              { icon: <FaApple className="w-5 h-5" />, label: 'Continue with Apple' },
-              { icon: <FaXTwitter className="w-5 h-5" />, label: 'Continue with X' },
-              { icon: <FiPhone className="w-5 h-5 text-green-500" />, label: 'Continue with Phone' },
-            ].map(({ icon, label }) => (
-              <button key={label} onClick={() => toast('OAuth requires backend config', { icon: 'ℹ️' })}
+            {oauthProviders.map(({ icon, label, provider }) => (
+              <button key={provider} onClick={() => handleOAuth(provider)}
                 className="w-full flex items-center gap-3 px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--bg-tertiary)] transition-all text-sm font-medium">
                 {icon} {label}
               </button>
@@ -123,7 +141,7 @@ export default function RegisterPage() {
                   className={`input-field pr-10 ${errors.password ? 'border-red-400' : ''}`} />
                 <button type="button" onClick={() => setShowPass(v => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
-                  {showPass ? <FiEyeInvisible className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                  {showPass ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
                 </button>
               </div>
               {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}

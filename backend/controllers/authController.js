@@ -297,23 +297,54 @@ export const changePassword = async (req, res) => {
   }
 };
 
-// @desc    OAuth callback handler (Google/Facebook/Apple/Twitter)
+const verifyGoogleToken = async (accessToken) => {
+  const infoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`);
+  if (!infoRes.ok) throw new Error('Invalid Google token');
+  const info = await infoRes.json();
+  if (info.aud !== process.env.GOOGLE_CLIENT_ID) throw new Error('Token audience mismatch');
+
+  const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const profile = profileRes.ok ? await profileRes.json() : {};
+
+  return { providerId: info.sub, email: info.email, fullName: profile.name, avatar: profile.picture };
+};
+
+const PROVIDER_VERIFIERS = {
+  google: verifyGoogleToken,
+};
+
+// @desc    OAuth callback handler (Google/Facebook/Apple)
 // @route   POST /api/auth/oauth
 export const oauthLogin = async (req, res) => {
   try {
-    const { provider, providerId, email, fullName, avatar, username: suggestedUsername } = req.body;
-
-    let user = await User.findOne({ [`${provider}Id`]: providerId });
-
-    if (!user && email) {
-      user = await User.findOne({ email });
+    const { provider, token } = req.body;
+    const verify = PROVIDER_VERIFIERS[provider];
+    if (!verify || !token) {
+      return res.status(400).json({ success: false, message: 'Invalid provider or token' });
     }
 
-    if (!user) {
-      // Create new user
-      let username = suggestedUsername || email?.split('@')[0] || `user${Date.now()}`;
-      username = username.toLowerCase().replace(/[^a-z0-9._]/g, '');
+    let identity;
+    try {
+      identity = await verify(token); // { providerId, email, fullName, avatar } -- verified fields only
+    } catch {
+      return res.status(401).json({ success: false, message: 'Could not verify identity with provider' });
+    }
+    const { providerId, email, avatar } = identity;
+    // Apple never embeds a display name in the verifiable token -- it hands
+    // one to the client directly, once, on first sign-in only. Honored here
+    // ONLY for provider === 'apple' (added in Task 4), and only as a
+    // fallback name for a brand-new account, never to override
+    // providerId/email.
+    const fullName = (provider === 'apple' && req.body.fullName) || identity.fullName;
 
+    let user = await User.findOne({ [`${provider}Id`]: providerId });
+    if (!user && email) user = await User.findOne({ email });
+
+    if (!user) {
+      let username = email?.split('@')[0] || `user${Date.now()}`;
+      username = username.toLowerCase().replace(/[^a-z0-9._]/g, '');
       const exists = await User.findOne({ username });
       if (exists) username = `${username}${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -326,7 +357,6 @@ export const oauthLogin = async (req, res) => {
         authProvider: provider,
         isEmailVerified: true
       });
-
       await sendWelcomeEmail(user);
     } else {
       user[`${provider}Id`] = providerId;

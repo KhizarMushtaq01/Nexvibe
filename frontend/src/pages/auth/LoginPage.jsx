@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { FiEye, FiPhone, FiSun, FiMoon } from 'react-icons/fi';
+import { FiEye, FiEyeOff, FiPhone, FiSun, FiMoon } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import toast from 'react-hot-toast';
 import { FcGoogle } from 'react-icons/fc';
 import { FaFacebook, FaApple, FaXTwitter } from "react-icons/fa6";
+import { triggerGoogleLogin } from '../../lib/googleAuth';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, oauthLogin } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [form, setForm] = useState({ identifier: '', password: '' });
@@ -40,9 +41,20 @@ export default function LoginPage() {
     { icon: <FiPhone className="w-5 h-5 text-green-500" />, label: 'Continue with Phone', provider: 'phone', color: 'border-[var(--border)]' },
   ];
 
-  const handleOAuth = (provider) => {
-    if (provider === 'phone') {
-      navigate('/register?method=phone');
+  const handleOAuth = async (provider) => {
+    if (provider === 'google') {
+      try {
+        const accessToken = await triggerGoogleLogin();
+        const data = await oauthLogin(provider, { token: accessToken });
+        if (data.requiresTwoFactor) {
+          navigate('/otp', { state: { userId: data.userId, purpose: '2fa' } });
+          return;
+        }
+        toast.success('Welcome!');
+        navigate('/');
+      } catch (err) {
+        toast.error(err.response?.data?.message || err.message || 'Google sign-in failed');
+      }
       return;
     }
     toast('OAuth requires backend configuration', { icon: 'ℹ️' });
@@ -84,7 +96,7 @@ export default function LoginPage() {
               />
               <button type="button" onClick={() => setShowPass(v => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
-                {showPass ? <FiEyeInvisible className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                {showPass ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
               </button>
             </div>
 
