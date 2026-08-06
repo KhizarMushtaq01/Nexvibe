@@ -1,13 +1,13 @@
 // src/pages/Security.jsx
 import { Link } from 'react-router-dom';
-import { useTheme } from '../context/ThemeContext';
 import { useState } from 'react';
-import { 
-  FiSun, FiMoon, FiArrowLeft, FiShield, FiLock, FiAlertCircle,
+import PublicHeader from '../components/common/PublicHeader';
+import {
+  FiArrowLeft, FiShield, FiLock, FiAlertCircle,
   FiCheckCircle, FiEye, FiEyeOff, FiSmartphone, FiMail, FiUserCheck,
   FiShieldOff, FiKey, FiDatabase, FiGlobe, FiBell, FiUserX
 } from 'react-icons/fi';
-import { BsInstagram, BsShieldCheck, BsShieldLock } from 'react-icons/bs';
+import { BsShieldCheck, BsShieldLock } from 'react-icons/bs';
 
 const SECURITY_FEATURES = [
   {
@@ -109,28 +109,9 @@ const PRIVACY_SETTINGS = [
 ];
 
 export default function Security() {
-  const { isDark, toggleTheme } = useTheme();
-
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]">
-      <header className="sticky top-0 z-50 bg-[var(--bg-primary)]/90 backdrop-blur-xl border-b border-[var(--border)]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 ig-gradient rounded-xl flex items-center justify-center">
-              <BsInstagram className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-black text-gradient">NexVibe</span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]">
-              {isDark ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
-            </button>
-            <Link to="/" className="px-4 py-2 rounded-xl text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors">
-              Back to Home
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PublicHeader />
 
       <main>
         {/* Hero Section */}

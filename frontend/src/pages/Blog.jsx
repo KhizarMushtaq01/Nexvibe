@@ -1,9 +1,8 @@
 // src/pages/Blog.jsx
 import { Link } from 'react-router-dom';
-import { useTheme } from '../context/ThemeContext';
 import { useState } from 'react';
-import { FiSun, FiMoon, FiSearch, FiCalendar, FiUser, FiTag, FiHeart, FiMessageCircle, FiShare2, FiBookmark } from 'react-icons/fi';
-import { BsInstagram } from 'react-icons/bs';
+import PublicHeader from '../components/common/PublicHeader';
+import { FiSearch, FiCalendar, FiUser, FiTag, FiHeart, FiMessageCircle, FiShare2, FiBookmark } from 'react-icons/fi';
 
 const BLOG_POSTS = [
   {
@@ -119,7 +118,6 @@ const BLOG_POSTS = [
 const CATEGORIES = ["All", "Growth Tips", "Video Content", "Personal Branding", "Security", "Monetization", "Community"];
 
 export default function Blog() {
-  const { isDark, toggleTheme } = useTheme();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
@@ -133,24 +131,7 @@ export default function Blog() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]">
-      <header className="sticky top-0 z-50 bg-[var(--bg-primary)]/90 backdrop-blur-xl border-b border-[var(--border)]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 ig-gradient rounded-xl flex items-center justify-center">
-              <BsInstagram className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-black text-gradient">NexVibe</span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]">
-              {isDark ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
-            </button>
-            <Link to="/" className="px-4 py-2 rounded-xl text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors">
-              Back to App
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PublicHeader />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
         {/* Hero Section */}

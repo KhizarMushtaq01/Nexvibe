@@ -1,28 +1,12 @@
 // pages/Terms.jsx
 import { Link } from 'react-router-dom';
-import { useTheme } from '../context/ThemeContext';
-import { FiSun, FiMoon, FiArrowLeft, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
-import { BsInstagram } from 'react-icons/bs';
+import { FiArrowLeft, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
+import PublicHeader from '../components/common/PublicHeader';
 
 export default function Terms() {
-  const { isDark, toggleTheme } = useTheme();
-
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-[var(--bg-primary)]/90 backdrop-blur-xl border-b border-[var(--border)]">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 ig-gradient rounded-xl flex items-center justify-center">
-              <BsInstagram className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-black text-gradient">NexVibe</span>
-          </Link>
-          <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]">
-            {isDark ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
-          </button>
-        </div>
-      </header>
+      <PublicHeader />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
         <Link to="/" className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] mb-8 transition-colors">

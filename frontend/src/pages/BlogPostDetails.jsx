@@ -1,11 +1,11 @@
 // src/pages/BlogPostDetails.jsx
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { useTheme } from '../context/ThemeContext';
 import { useState } from 'react';
-import { 
-  FiSun, FiMoon, FiArrowLeft, FiHeart, FiMessageCircle, FiShare2, 
-  FiBookmark, FiCalendar, FiUser, FiTag, FiTwitter, FiFacebook, 
-  FiLink, FiChevronLeft, FiChevronRight 
+import PublicHeader from '../components/common/PublicHeader';
+import {
+  FiArrowLeft, FiHeart, FiMessageCircle, FiShare2,
+  FiBookmark, FiCalendar, FiUser, FiTag, FiTwitter, FiFacebook,
+  FiLink, FiChevronLeft, FiChevronRight
 } from 'react-icons/fi';
 import { BsInstagram } from 'react-icons/bs';
 
@@ -273,7 +273,6 @@ const BLOG_POSTS = {
 export default function BlogPostDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isDark, toggleTheme } = useTheme();
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [likesCount, setLikesCount] = useState(BLOG_POSTS[id]?.likes || 0);
@@ -307,24 +306,7 @@ export default function BlogPostDetails() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]">
-      <header className="sticky top-0 z-50 bg-[var(--bg-primary)]/90 backdrop-blur-xl border-b border-[var(--border)]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 ig-gradient rounded-xl flex items-center justify-center">
-              <BsInstagram className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-black text-gradient">NexVibe</span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]">
-              {isDark ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
-            </button>
-            <Link to="/blog" className="px-4 py-2 rounded-xl text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors">
-              All Posts
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PublicHeader />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
         {/* Back Button */}

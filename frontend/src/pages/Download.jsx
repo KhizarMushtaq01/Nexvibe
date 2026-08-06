@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { useTheme } from '../context/ThemeContext';
+import PublicHeader from '../components/common/PublicHeader';
 import { detectPlatform } from '../lib/deviceDetect';
 import { getDeferredPrompt, onInstallPromptAvailable, clearDeferredPrompt } from '../lib/installPrompt';
-import { FiSun, FiMoon, FiDownload, FiCheckCircle } from 'react-icons/fi';
+import { FiDownload, FiCheckCircle } from 'react-icons/fi';
 import { FaAndroid, FaApple, FaWindows } from 'react-icons/fa6';
-import { BsInstagram } from 'react-icons/bs';
 
 const PLATFORM_INFO = {
   android: { label: 'Android', icon: <FaAndroid className="w-6 h-6" /> },
@@ -28,7 +26,6 @@ const isStandaloneDisplay = () =>
   window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
 export default function Download() {
-  const { isDark, toggleTheme } = useTheme();
   const [platform] = useState(() => detectPlatform(navigator.userAgent));
   const [canPrompt, setCanPrompt] = useState(() => !!getDeferredPrompt());
   const [installed, setInstalled] = useState(() => isStandaloneDisplay());
@@ -57,24 +54,7 @@ export default function Download() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]">
-      <header className="sticky top-0 z-50 bg-[var(--bg-primary)]/90 backdrop-blur-xl border-b border-[var(--border)]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 ig-gradient rounded-xl flex items-center justify-center">
-              <BsInstagram className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-black text-gradient">NexVibe</span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]">
-              {isDark ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
-            </button>
-            <Link to="/" className="px-4 py-2 rounded-xl text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors">
-              Back to Home
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PublicHeader />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-16">
         <div className="text-center mb-12">
