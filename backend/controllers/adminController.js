@@ -4,6 +4,7 @@ import { Message } from '../models/Message.js';
 import Notification from '../models/Notification.js';
 import Story from '../models/Story.js';
 import Report from '../models/Report.js';
+import Review from '../models/Review.js';
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -355,6 +356,50 @@ export const resolveReport = async (req, res) => {
     }
 
     res.json({ success: true });
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(400).json({ success: false, message: 'Invalid id' });
+    }
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getReviews = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const status = ['pending', 'approved', 'rejected'].includes(req.query.status) ? req.query.status : 'pending';
+
+    const reviews = await Review.find({ status })
+      .populate('user', 'username fullName avatar')
+      .populate('moderatedBy', 'username')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const total = await Review.countDocuments({ status });
+
+    res.json({ success: true, reviews, total, pages: Math.ceil(total / limit) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const moderateReview = async (req, res) => {
+  try {
+    const { action } = req.body;
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'Invalid action' });
+    }
+
+    const review = await Review.findById(req.params.id);
+    if (!review) return res.status(404).json({ success: false, message: 'Review not found' });
+
+    review.status = action === 'approve' ? 'approved' : 'rejected';
+    review.moderatedBy = req.user._id;
+    review.moderatedAt = new Date();
+    await review.save();
+
+    res.json({ success: true, review });
   } catch (error) {
     if (error.name === 'CastError') {
       return res.status(400).json({ success: false, message: 'Invalid id' });
