@@ -346,8 +346,15 @@ function AppPermissionsSection() {
       const stream = await navigator.mediaDevices.getUserMedia({ [kind]: true });
       stream.getTracks().forEach((track) => track.stop());
       setter('granted');
-    } catch {
-      setter('denied');
+    } catch (error) {
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        setter('denied');
+      } else {
+        // NotFoundError (no device), NotReadableError (device busy elsewhere),
+        // OverconstrainedError, etc. are transient/environmental, not a real
+        // permission denial — keep the Test button available for retry.
+        setter('unsupported');
+      }
     }
   };
 
