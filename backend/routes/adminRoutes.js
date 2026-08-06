@@ -19,4 +19,6 @@ router.delete('/posts/:id', ...isAdmin, admin.deletePostAdmin);
 router.post('/notifications/send', ...isAdmin, admin.sendSystemNotification);
 router.get('/reports', ...isAdmin, admin.getReports);
 router.post('/reports/resolve', ...isAdmin, admin.resolveReport);
+router.get('/reviews', ...isAdmin, admin.getReviews);
+router.post('/reviews/:id/moderate', ...isAdmin, admin.moderateReview);
 export default router;

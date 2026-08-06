@@ -177,6 +177,8 @@ export const adminAPI = {
   sendNotification: (data) => API.post('/admin/notifications/send', data),
   getReports: (params) => API.get('/admin/reports', { params }),
   resolveReport: (data) => API.post('/admin/reports/resolve', data),
+  getReviews: (params) => API.get('/admin/reviews', { params }),
+  moderateReview: (id, action) => API.post(`/admin/reviews/${id}/moderate`, { action }),
 };
 
 export default API;
