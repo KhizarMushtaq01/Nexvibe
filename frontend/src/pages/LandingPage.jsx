@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
+import PublicHeader from '../components/common/PublicHeader';
 
 // ── icons from react-icons/fi (all confirmed available) ──
 import {
-  FiSun, FiMoon, FiArrowRight, FiMenu, FiX,
+  FiSun, FiMoon, FiArrowRight,
   FiCamera, FiMessageCircle, FiHeart, FiUsers,
   FiShield, FiZap, FiSmartphone, FiGlobe,
   FiStar, FiTrendingUp, FiPlay, FiCheck,
@@ -36,14 +37,6 @@ const PHONE_SCREENS = [
     label: 'Watch & create reels',
     icon: <BsCollectionPlay className="w-10 h-10 text-white" />,
   },
-];
-
-const NAV_LINKS = [
-  { label: 'Features', href: '#features' },
-  { label: 'Reels', href: '#reels' },
-  { label: 'Community', path: '/community' },
-  { label: 'Security', path: '/security' },
-  { label: 'Download', path: '/download' },
 ];
 
 const STATS = [
@@ -186,7 +179,6 @@ function MockStoryBubble({ name, avatar, hasRing = true, delay = 0 }) {
 export default function LandingPage() {
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
   const [activeFeature, setActiveFeature] = useState(0);
   const statsRef = useRef(null);
@@ -204,91 +196,20 @@ export default function LandingPage() {
     return () => obs.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (window.location.hash) {
+      document.querySelector(window.location.hash)?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
+
   const scrollTo = (id) => {
-    setMobileMenuOpen(false);
     document.querySelector(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] overflow-x-hidden">
 
-      {/* ── NAVBAR ── */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[var(--bg-primary)]/90 backdrop-blur-xl border-b border-[var(--border)]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 ig-gradient rounded-xl flex items-center justify-center">
-              <BsInstagram className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-black text-gradient">NexVibe</span>
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-1">
-            {NAV_LINKS.map(l => (
-              l.path ? (
-                <Link 
-                  key={l.path} 
-                  to={l.path}
-                  className="px-4 py-2 rounded-xl text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
-                >
-                  {l.label}
-                </Link>
-              ) : (
-                <button 
-                  key={l.href} 
-                  onClick={() => scrollTo(l.href)}
-                  className="px-4 py-2 rounded-xl text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
-                >
-                  {l.label}
-                </button>
-              )
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-2">
-            <button onClick={toggleTheme} className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]">
-              {isDark ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
-            </button>
-            <Link to="/login" className="hidden sm:block px-4 py-2 rounded-xl text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors">
-              Log in
-            </Link>
-            <Link to="/register" className="btn-brand px-4 py-2 text-sm rounded-xl">
-              Sign up free
-            </Link>
-            <button onClick={() => setMobileMenuOpen(v => !v)} className="md:hidden p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors">
-              {mobileMenuOpen ? <FiX className="w-5 h-5" /> : <FiMenu className="w-5 h-5" />}
-            </button>
-          </div>
-        </div>
-
-        {mobileMenuOpen && (
-          <div className="md:hidden bg-[var(--bg-primary)] border-t border-[var(--border)] px-4 py-4 space-y-1 animate-slide-down">
-            {NAV_LINKS.map(l => (
-              l.path ? (
-                <Link 
-                  key={l.path} 
-                  to={l.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium hover:bg-[var(--bg-tertiary)] transition-colors"
-                >
-                  {l.label}
-                </Link>
-              ) : (
-                <button 
-                  key={l.href} 
-                  onClick={() => scrollTo(l.href)}
-                  className="block w-full text-left px-4 py-3 rounded-xl text-sm font-medium hover:bg-[var(--bg-tertiary)] transition-colors"
-                >
-                  {l.label}
-                </button>
-              )
-            ))}
-            <div className="pt-2 flex flex-col gap-2">
-              <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="btn-outline w-full text-center py-2.5 rounded-xl text-sm">Log in</Link>
-              <Link to="/register" onClick={() => setMobileMenuOpen(false)} className="btn-brand w-full text-center py-2.5 rounded-xl text-sm">Sign up free</Link>
-            </div>
-          </div>
-        )}
-      </header>
+      <PublicHeader />
 
       {/* ── HERO with Phone Mockup ── */}
       <section className="pt-28 pb-20 px-4 sm:px-6 relative overflow-hidden">
