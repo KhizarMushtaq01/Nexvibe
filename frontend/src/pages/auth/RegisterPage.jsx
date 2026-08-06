@@ -9,6 +9,7 @@ import { FaXTwitter } from "react-icons/fa6";
 import { useTheme } from '../../context/ThemeContext';
 import { usePrompt } from '../../context/DialogContext';
 import { triggerGoogleLogin } from '../../lib/googleAuth';
+import { triggerFacebookLogin } from '../../lib/facebookAuth';
 import { authAPI } from '../../services/api';
 
 export default function RegisterPage() {
@@ -91,6 +92,17 @@ export default function RegisterPage() {
         navigate('/otp', { state: { userId: data.userId, purpose: 'phone_login', phone } });
       } catch (err) {
         toast.error(err.response?.data?.message || 'Failed to send code');
+      }
+      return;
+    }
+    if (provider === 'facebook') {
+      try {
+        const accessToken = await triggerFacebookLogin();
+        await oauthLogin(provider, { token: accessToken });
+        toast.success('Welcome to NexVibe!');
+        navigate('/');
+      } catch (err) {
+        toast.error(err.response?.data?.message || err.message || 'Facebook sign-in failed');
       }
       return;
     }

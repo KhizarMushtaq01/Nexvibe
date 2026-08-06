@@ -313,8 +313,23 @@ const verifyGoogleToken = async (accessToken) => {
   return { providerId: info.sub, email: info.email, fullName: profile.name, avatar: profile.picture };
 };
 
+const verifyFacebookToken = async (accessToken) => {
+  const appToken = `${process.env.FACEBOOK_APP_ID}|${process.env.FACEBOOK_APP_SECRET}`;
+  const debugRes = await fetch(`https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${appToken}`);
+  const debug = await debugRes.json();
+  if (!debug.data?.is_valid || debug.data.app_id !== process.env.FACEBOOK_APP_ID) {
+    throw new Error('Invalid Facebook token');
+  }
+
+  const profileRes = await fetch(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
+  const profile = await profileRes.json();
+
+  return { providerId: profile.id, email: profile.email, fullName: profile.name, avatar: profile.picture?.data?.url };
+};
+
 const PROVIDER_VERIFIERS = {
   google: verifyGoogleToken,
+  facebook: verifyFacebookToken,
 };
 
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
