@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import PublicHeader from '../components/common/PublicHeader';
 
@@ -179,6 +179,7 @@ function MockStoryBubble({ name, avatar, hasRing = true, delay = 0 }) {
 export default function LandingPage() {
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [statsVisible, setStatsVisible] = useState(false);
   const [activeFeature, setActiveFeature] = useState(0);
   const statsRef = useRef(null);
@@ -200,14 +201,14 @@ export default function LandingPage() {
     if (window.location.hash) {
       document.querySelector(window.location.hash)?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, []);
+  }, [location]);
 
   const scrollTo = (id) => {
     document.querySelector(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] overflow-x-hidden">
+    <div className="min-h-screen bg-[var(--bg-primary)] overflow-x-clip">
 
       <PublicHeader />
 
