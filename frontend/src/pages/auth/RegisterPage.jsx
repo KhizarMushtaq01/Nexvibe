@@ -7,11 +7,14 @@ import { FcGoogle } from 'react-icons/fc';
 import { FaFacebook, FaApple } from 'react-icons/fa6';
 import { FaXTwitter } from "react-icons/fa6";
 import { useTheme } from '../../context/ThemeContext';
+import { usePrompt } from '../../context/DialogContext';
 import { triggerGoogleLogin } from '../../lib/googleAuth';
+import { authAPI } from '../../services/api';
 
 export default function RegisterPage() {
   const { register, oauthLogin } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const promptDialog = usePrompt();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ fullName: '', username: '', email: '', password: '' });
@@ -77,6 +80,17 @@ export default function RegisterPage() {
         navigate('/');
       } catch (err) {
         toast.error(err.response?.data?.message || err.message || 'Google sign-in failed');
+      }
+      return;
+    }
+    if (provider === 'phone') {
+      const phone = await promptDialog({ title: 'Enter your phone number', inputPlaceholder: '+1 234 567 8900' });
+      if (!phone) return;
+      try {
+        const { data } = await authAPI.sendPhoneOTP(phone);
+        navigate('/otp', { state: { userId: data.userId, purpose: 'phone_login', phone } });
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to send code');
       }
       return;
     }

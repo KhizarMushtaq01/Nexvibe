@@ -81,7 +81,7 @@ export default function OTPPage() {
           <div className="text-5xl mb-4">📱</div>
           <h1 className="text-2xl font-bold mb-2">Enter the code</h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            We sent a 6-digit code to <strong>{state?.email || 'your email'}</strong>
+            We sent a 6-digit code to <strong>{state?.phone || state?.email || 'your email'}</strong>
           </p>
         </div>
 

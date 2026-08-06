@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import twilio from 'twilio';
 import User from '../models/User.js';
 import { sendTokenResponse, generateToken } from '../utils/auth.js';
 import {
@@ -132,8 +133,9 @@ export const verifyOTP = async (req, res) => {
     user.otpExpiry = undefined;
     user.otpPurpose = undefined;
 
-    if (purpose === 'register' || purpose === '2fa' || purpose === 'login') {
+    if (purpose === 'register' || purpose === '2fa' || purpose === 'login' || purpose === 'phone_login') {
       user.isEmailVerified = true;
+      if (purpose === 'phone_login') user.isPhoneVerified = true;
       user.lastSeen = new Date();
       await user.save();
       sendTokenResponse(user, 200, res, 'Verified successfully');
@@ -315,6 +317,10 @@ const PROVIDER_VERIFIERS = {
   google: verifyGoogleToken,
 };
 
+const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+  : null;
+
 // @desc    OAuth callback handler (Google/Facebook/Apple)
 // @route   POST /api/auth/oauth
 export const oauthLogin = async (req, res) => {
@@ -375,24 +381,27 @@ export const oauthLogin = async (req, res) => {
 // @desc    Send phone OTP
 // @route   POST /api/auth/phone-otp
 export const sendPhoneOTP = async (req, res) => {
-  // In production, integrate with Twilio or similar
   try {
     const { phone } = req.body;
-    // For now, simulate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    if (!phone) return res.status(400).json({ success: false, message: 'Phone number required' });
+    if (!twilioClient) return res.status(500).json({ success: false, message: 'SMS delivery is not configured' });
 
     let user = await User.findOne({ phone });
     if (!user) {
-      // Store temp OTP for registration
-      return res.json({ success: true, message: 'OTP sent', isNewUser: true, otp }); // remove otp in production
+      const username = `user${Date.now()}`;
+      user = await User.create({ fullName: 'New User', username, phone, authProvider: 'phone' });
     }
 
-    user.otp = otp;
-    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-    user.otpPurpose = 'phone_login';
+    const otp = user.generateOTP('phone_login');
     await user.save();
 
-    res.json({ success: true, message: 'OTP sent to your phone', userId: user._id });
+    await twilioClient.messages.create({
+      body: `Your NexVibe verification code is: ${otp}`,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: phone
+    });
+
+    res.json({ success: true, message: 'OTP sent', userId: user._id });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
