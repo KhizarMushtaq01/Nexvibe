@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { notificationAPI } from '../../services/api';
 import Avatar from './Avatar';
 import { formatDistanceToNow } from 'date-fns';
-import { FiTrash2 } from 'react-icons/fi';
+import { FiTrash2, FiBell } from 'react-icons/fi';
 
 export default function NotificationsDropdown({ onClose }) {
   const [notifications, setNotifications] = useState([]);
@@ -57,7 +57,7 @@ export default function NotificationsDropdown({ onClose }) {
           </div>
         ) : notifications.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-3xl mb-2">🔔</p>
+            <FiBell className="w-8 h-8 mx-auto mb-2 text-[var(--text-muted)]" />
             <p className="text-sm text-[var(--text-muted)]">No notifications yet</p>
           </div>
         ) : notifications.map(n => (

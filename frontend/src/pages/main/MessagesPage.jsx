@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 import {
   FiArrowLeft, FiSend, FiSmile, FiCamera, FiPhone,
   FiVideo, FiSearch, FiEdit, FiMoreHorizontal, FiX,
-  FiMessageCircle, FiMic, FiPlusCircle
+  FiMessageCircle, FiMic, FiPlusCircle, FiLock
 } from 'react-icons/fi';
 import { BsCheck2All, BsCheck2 } from 'react-icons/bs';
 import { ratchetEncrypt } from '../../lib/e2eCrypto';
@@ -325,11 +325,11 @@ export default function MessagesPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <p className={`text-xs truncate ${conv.unreadCount ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-muted)]'}`}>
+                      <p className={`text-xs truncate flex items-center gap-1 ${conv.unreadCount ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-muted)]'}`}>
                         {lastMsg?.isUnsent ? 'Message unsent'
-                          : lastMsg?.type === 'image' ? '📷 Photo'
-                          : lastMsg?.type === 'video' ? '🎥 Video'
-                          : lastMsg?.encrypted ? '🔒 Encrypted message'
+                          : lastMsg?.type === 'image' ? <><FiCamera className="w-3 h-3 flex-shrink-0" /> Photo</>
+                          : lastMsg?.type === 'video' ? <><FiVideo className="w-3 h-3 flex-shrink-0" /> Video</>
+                          : lastMsg?.encrypted ? <><FiLock className="w-3 h-3 flex-shrink-0" /> Encrypted message</>
                           : lastMsg?.content || 'Start a conversation'}
                       </p>
                       {conv.unreadCount > 0 && (
@@ -382,7 +382,7 @@ export default function MessagesPage() {
                     {/* Photos and videos in this thread are NOT encrypted (out of
                         scope for Phase 1), so the copy is deliberately narrowed
                         to text messages. */}
-                    <span>🔒</span><span>Text messages are end-to-end encrypted</span>
+                    <FiLock className="w-3.5 h-3.5 flex-shrink-0" /><span>Text messages are end-to-end encrypted</span>
                   </div>
                 ) : activeConv.type === 'direct' && (
                   <div className="hidden md:flex items-center gap-1.5 text-xs text-[var(--text-muted)] px-2">
@@ -455,8 +455,8 @@ export default function MessagesPage() {
                           You sent an encrypted message
                         </div>
                       ) : msg.decryptError ? (
-                        <div className="px-4 py-2.5 rounded-2xl text-sm italic text-[var(--text-muted)] border border-[var(--border)]">
-                          🔒 Couldn't decrypt this message
+                        <div className="px-4 py-2.5 rounded-2xl text-sm italic text-[var(--text-muted)] border border-[var(--border)] flex items-center gap-1.5">
+                          <FiLock className="w-3.5 h-3.5 flex-shrink-0" /> Couldn't decrypt this message
                         </div>
                       ) : msg.type === 'image' ? (
                         <img src={msg.media?.url} className="rounded-2xl max-w-[240px] max-h-[320px] object-cover cursor-pointer hover:opacity-90 transition-opacity" />

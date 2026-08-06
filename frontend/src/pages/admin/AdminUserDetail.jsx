@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FiArrowLeft } from 'react-icons/fi';
+import { FiArrowLeft, FiCheckCircle, FiXCircle, FiCheck, FiUnlock, FiSlash, FiTrash2 } from 'react-icons/fi';
 import { MdVerified } from 'react-icons/md';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { adminAPI } from '../../services/api';
@@ -111,12 +111,21 @@ export default function AdminUserDetail() {
                 { label: 'Email', value: user.email },
                 { label: 'Phone', value: user.phone || 'Not set' },
                 { label: 'Auth Provider', value: user.authProvider },
-                { label: 'Email Verified', value: user.isEmailVerified ? '✅ Yes' : '❌ No' },
-                { label: '2FA Enabled', value: user.twoFactorEnabled ? '✅ Yes' : '❌ No' },
+                { label: 'Email Verified', value: user.isEmailVerified
+                  ? <span className="flex items-center gap-1 text-green-600"><FiCheckCircle className="w-3.5 h-3.5" /> Yes</span>
+                  : <span className="flex items-center gap-1 text-red-500"><FiXCircle className="w-3.5 h-3.5" /> No</span> },
+                { label: '2FA Enabled', value: user.twoFactorEnabled
+                  ? <span className="flex items-center gap-1 text-green-600"><FiCheckCircle className="w-3.5 h-3.5" /> Yes</span>
+                  : <span className="flex items-center gap-1 text-red-500"><FiXCircle className="w-3.5 h-3.5" /> No</span> },
                 { label: 'Account Type', value: user.accountType },
                 { label: 'Joined', value: format(new Date(user.createdAt), 'PPP') },
                 { label: 'Last Seen', value: user.lastSeen ? format(new Date(user.lastSeen), 'PPP p') : 'N/A' },
-                { label: 'Online', value: user.isOnline ? '🟢 Online' : '⚫ Offline' },
+                { label: 'Online', value: (
+                  <span className="flex items-center gap-1.5">
+                    <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${user.isOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
+                    {user.isOnline ? 'Online' : 'Offline'}
+                  </span>
+                ) },
               ].map(({ label, value }) => (
                 <div key={label} className="bg-[var(--bg-tertiary)] rounded-lg p-3">
                   <p className="text-xs text-[var(--text-muted)] mb-0.5">{label}</p>
@@ -131,12 +140,12 @@ export default function AdminUserDetail() {
             <h3 className="font-bold mb-4">Admin Actions</h3>
             <div className="grid grid-cols-2 gap-3">
               <button onClick={handleVerify}
-                className={`py-2.5 px-4 rounded-xl text-sm font-semibold transition-colors border ${user.isVerified ? 'border-gray-300 text-gray-600 hover:bg-gray-50' : 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20'}`}>
-                {user.isVerified ? '✓ Remove verification' : '☑ Verify account'}
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl text-sm font-semibold transition-colors border ${user.isVerified ? 'border-gray-300 text-gray-600 hover:bg-gray-50' : 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20'}`}>
+                <FiCheck className="w-4 h-4" /> {user.isVerified ? 'Remove verification' : 'Verify account'}
               </button>
               <button onClick={user.isBanned ? handleUnban : handleBan}
-                className={`py-2.5 px-4 rounded-xl text-sm font-semibold transition-colors border ${user.isBanned ? 'border-green-300 text-green-600 hover:bg-green-50' : 'border-orange-300 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20'}`}>
-                {user.isBanned ? '🔓 Unban user' : '🚫 Ban user'}
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl text-sm font-semibold transition-colors border ${user.isBanned ? 'border-green-300 text-green-600 hover:bg-green-50' : 'border-orange-300 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20'}`}>
+                {user.isBanned ? <FiUnlock className="w-4 h-4" /> : <FiSlash className="w-4 h-4" />} {user.isBanned ? 'Unban user' : 'Ban user'}
               </button>
               {user.banReason && (
                 <div className="col-span-2 bg-red-50 dark:bg-red-950/20 rounded-xl p-3">
@@ -157,8 +166,8 @@ export default function AdminUserDetail() {
               </div>
               {user.role !== 'admin' && user.role !== 'superadmin' && (
                 <button onClick={handleDelete}
-                  className="col-span-2 py-2.5 px-4 rounded-xl text-sm font-semibold border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
-                  🗑 Delete account permanently
+                  className="col-span-2 flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl text-sm font-semibold border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
+                  <FiTrash2 className="w-4 h-4" /> Delete account permanently
                 </button>
               )}
             </div>

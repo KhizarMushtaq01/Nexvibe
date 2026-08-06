@@ -4,6 +4,7 @@ import PostGrid from '../../components/post/PostGrid';
 import { useInView } from 'react-intersection-observer';
 import { useNavigate } from 'react-router-dom';
 import { FiSearch } from 'react-icons/fi';
+import { MdOutlineExplore } from 'react-icons/md';
 
 export default function ExplorePage() {
   const [posts, setPosts] = useState([]);
@@ -48,7 +49,7 @@ export default function ExplorePage() {
         </div>
       ) : posts.length === 0 ? (
         <div className="text-center py-20">
-          <p className="text-5xl mb-4">🌍</p>
+          <MdOutlineExplore className="w-12 h-12 mx-auto mb-4 text-[var(--text-muted)]" />
           <h2 className="text-xl font-bold mb-2">Nothing to explore yet</h2>
           <p className="text-sm text-[var(--text-secondary)]">Posts from the community will appear here.</p>
         </div>

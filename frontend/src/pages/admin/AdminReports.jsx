@@ -5,6 +5,7 @@ import { adminAPI } from '../../services/api';
 import Avatar from '../../components/common/Avatar';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../context/DialogContext';
+import { FiCheckCircle } from 'react-icons/fi';
 
 const TYPE_TABS = [
   { value: '', label: 'All' },
@@ -113,7 +114,11 @@ export default function AdminReports() {
           Array(4).fill(0).map((_, i) => <div key={i} className="h-28 rounded-2xl shimmer" />)
         ) : groups.length === 0 ? (
           <div className="text-center py-16 text-[var(--text-muted)]">
-            {status === 'pending' ? 'No pending reports 🎉' : 'No resolved reports yet'}
+            {status === 'pending' ? (
+              <span className="flex items-center justify-center gap-1.5">
+                <FiCheckCircle className="w-4 h-4 text-green-500" /> No pending reports
+              </span>
+            ) : 'No resolved reports yet'}
           </div>
         ) : (
           groups.map(g => (

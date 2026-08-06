@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiCheck, FiEye, FiFilter, FiSearch, FiSlash, FiTrash2 } from 'react-icons/fi';
+import { FiCheck, FiEye, FiFilter, FiSearch, FiSlash, FiTrash2, FiSend } from 'react-icons/fi';
 import { MdVerified } from 'react-icons/md';
 import { adminAPI } from '../../services/api';
 import { Link } from 'react-router-dom';
@@ -96,8 +96,8 @@ export default function AdminUsers() {
           <p className="text-[var(--text-secondary)] text-sm">{total.toLocaleString()} total users</p>
         </div>
         <button onClick={() => setNotifModal(true)}
-          className="btn-primary px-4 py-2 rounded-xl text-sm">
-          📢 Send Notification
+          className="btn-primary px-4 py-2 rounded-xl text-sm flex items-center gap-1.5">
+          <FiSend className="w-4 h-4" /> Send Notification
         </button>
       </div>
 

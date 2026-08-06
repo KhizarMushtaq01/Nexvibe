@@ -4,6 +4,7 @@ import { searchAPI } from '../../services/api';
 import Avatar from '../../components/common/Avatar';
 import PostGrid from '../../components/post/PostGrid';
 import { FiSearch, FiX, FiClock } from 'react-icons/fi';
+import { MdVerified } from 'react-icons/md';
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
@@ -92,7 +93,7 @@ export default function SearchPage() {
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm flex items-center gap-1 truncate">
                   {u.username}
-                  {u.isVerified && <span className="text-blue-500 text-xs flex-shrink-0">✓</span>}
+                  {u.isVerified && <MdVerified className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
                 </p>
                 <p className="text-xs text-[var(--text-muted)] truncate">{u.fullName}</p>
               </div>
@@ -176,7 +177,7 @@ export default function SearchPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm flex items-center gap-1 truncate">
                           {u.username}
-                          {u.isVerified && <span className="text-blue-500 text-xs">✓</span>}
+                          {u.isVerified && <MdVerified className="w-3.5 h-3.5 text-blue-500" />}
                         </p>
                         <p className="text-xs text-[var(--text-muted)] truncate">
                           {u.fullName} · {(u.followers?.length || 0).toLocaleString()} followers
@@ -217,7 +218,7 @@ export default function SearchPage() {
               {/* No results */}
               {!results.users?.length && !results.hashtags?.length && !results.posts?.length && (
                 <div className="text-center py-16">
-                  <p className="text-4xl mb-3">🔍</p>
+                  <FiSearch className="w-10 h-10 mx-auto mb-3 text-[var(--text-muted)]" />
                   <p className="font-bold mb-1">No results for "{query}"</p>
                   <p className="text-sm text-[var(--text-secondary)]">Try searching for a different term.</p>
                 </div>

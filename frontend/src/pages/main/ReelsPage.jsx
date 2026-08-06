@@ -4,8 +4,9 @@ import { reelAPI, postAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import Avatar from '../../components/common/Avatar';
 import toast from 'react-hot-toast';
-import { FiHeart, FiMessageCircle, FiSend, FiBookmark, FiMoreHorizontal, FiPlay, FiPause, FiVolume2, FiVolumeX } from 'react-icons/fi';
+import { FiHeart, FiMessageCircle, FiSend, FiBookmark, FiMoreHorizontal, FiPlay, FiPause, FiVolume2, FiVolumeX, FiFilm } from 'react-icons/fi';
 import { BsMusicNote } from 'react-icons/bs';
+import { MdVerified } from 'react-icons/md';
 
 export default function ReelsPage() {
   const { user } = useAuth();
@@ -28,7 +29,7 @@ export default function ReelsPage() {
 
   if (reels.length === 0) return (
     <div className="flex flex-col items-center justify-center h-screen gap-5 bg-[var(--bg-primary)]">
-      <div className="text-6xl">🎬</div>
+      <FiFilm className="w-14 h-14 text-[var(--text-muted)]" />
       <h2 className="text-2xl font-bold">No reels yet</h2>
       <p className="text-sm text-[var(--text-secondary)] text-center max-w-xs">
         Follow people to see their reels, or create your first reel.
@@ -97,7 +98,7 @@ function ReelCard({ reel, isFirst }) {
         />
       ) : (
         <div className="w-full h-full bg-gradient-to-br from-purple-900 via-pink-900 to-black flex items-center justify-center">
-          <span className="text-white text-6xl">🎬</span>
+          <FiFilm className="w-14 h-14 text-white" />
         </div>
       )}
 
@@ -165,7 +166,11 @@ function ReelCard({ reel, isFirst }) {
             <p className="text-white font-bold text-sm drop-shadow group-hover:opacity-80 transition-opacity">
               @{reel.author?.username}
             </p>
-            {reel.author?.isVerified && <span className="text-blue-400 text-xs">✓ Verified</span>}
+            {reel.author?.isVerified && (
+              <span className="flex items-center gap-1 text-blue-400 text-xs">
+                <MdVerified className="w-3.5 h-3.5" /> Verified
+              </span>
+            )}
           </div>
           {reel.author?.username !== user?.username && (
             <button className="ml-2 border border-white text-white text-xs font-semibold px-3 py-1 rounded-lg hover:bg-white hover:text-black transition-colors">

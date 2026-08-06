@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { adminAPI } from '../../services/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { useTheme } from '../../context/ThemeContext';
+import { FiUsers, FiCheckCircle, FiCamera, FiSlash, FiUserPlus, FiFileText, FiFlag } from 'react-icons/fi';
+import { MdVerified } from 'react-icons/md';
+import { BsStars } from 'react-icons/bs';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
@@ -22,15 +25,15 @@ export default function AdminDashboard() {
   );
 
   const cards = [
-    { label: 'Total Users', value: stats?.stats.totalUsers?.toLocaleString() || 0, icon: '👥', color: 'from-blue-500 to-blue-600', change: `+${stats?.stats.newUsersToday} today` },
-    { label: 'Active Users', value: stats?.stats.activeUsers?.toLocaleString() || 0, icon: '✅', color: 'from-green-500 to-green-600', change: 'Currently active' },
-    { label: 'Total Posts', value: stats?.stats.totalPosts?.toLocaleString() || 0, icon: '📸', color: 'from-pink-500 to-pink-600', change: `+${stats?.stats.newPostsToday} today` },
-    { label: 'Verified Users', value: stats?.stats.verifiedUsers?.toLocaleString() || 0, icon: '☑️', color: 'from-purple-500 to-purple-600', change: 'Verified accounts' },
-    { label: 'Total Stories', value: stats?.stats.totalStories?.toLocaleString() || 0, icon: '🔵', color: 'from-orange-500 to-orange-600', change: 'Active stories' },
-    { label: 'Banned Users', value: stats?.stats.bannedUsers?.toLocaleString() || 0, icon: '🚫', color: 'from-red-500 to-red-600', change: 'Need review' },
-    { label: 'New Today', value: stats?.stats.newUsersToday?.toLocaleString() || 0, icon: '🆕', color: 'from-teal-500 to-teal-600', change: 'Registered today' },
-    { label: 'Posts Today', value: stats?.stats.newPostsToday?.toLocaleString() || 0, icon: '📝', color: 'from-indigo-500 to-indigo-600', change: 'Created today' },
-    { label: 'Pending Reports', value: stats?.stats.pendingReports?.toLocaleString() || 0, icon: '🚩', color: 'from-red-500 to-red-600', change: 'Needs review', link: '/admin/reports' },
+    { label: 'Total Users', value: stats?.stats.totalUsers?.toLocaleString() || 0, icon: <FiUsers className="w-5 h-5" />, color: 'from-blue-500 to-blue-600', change: `+${stats?.stats.newUsersToday} today` },
+    { label: 'Active Users', value: stats?.stats.activeUsers?.toLocaleString() || 0, icon: <FiCheckCircle className="w-5 h-5" />, color: 'from-green-500 to-green-600', change: 'Currently active' },
+    { label: 'Total Posts', value: stats?.stats.totalPosts?.toLocaleString() || 0, icon: <FiCamera className="w-5 h-5" />, color: 'from-pink-500 to-pink-600', change: `+${stats?.stats.newPostsToday} today` },
+    { label: 'Verified Users', value: stats?.stats.verifiedUsers?.toLocaleString() || 0, icon: <MdVerified className="w-5 h-5" />, color: 'from-purple-500 to-purple-600', change: 'Verified accounts' },
+    { label: 'Total Stories', value: stats?.stats.totalStories?.toLocaleString() || 0, icon: <BsStars className="w-5 h-5" />, color: 'from-orange-500 to-orange-600', change: 'Active stories' },
+    { label: 'Banned Users', value: stats?.stats.bannedUsers?.toLocaleString() || 0, icon: <FiSlash className="w-5 h-5" />, color: 'from-red-500 to-red-600', change: 'Need review' },
+    { label: 'New Today', value: stats?.stats.newUsersToday?.toLocaleString() || 0, icon: <FiUserPlus className="w-5 h-5" />, color: 'from-teal-500 to-teal-600', change: 'Registered today' },
+    { label: 'Posts Today', value: stats?.stats.newPostsToday?.toLocaleString() || 0, icon: <FiFileText className="w-5 h-5" />, color: 'from-indigo-500 to-indigo-600', change: 'Created today' },
+    { label: 'Pending Reports', value: stats?.stats.pendingReports?.toLocaleString() || 0, icon: <FiFlag className="w-5 h-5" />, color: 'from-red-500 to-red-600', change: 'Needs review', link: '/admin/reports' },
   ];
 
   const chartColor = isDark ? '#a8a8a8' : '#555';
@@ -48,7 +51,9 @@ export default function AdminDashboard() {
           const cardBody = (
             <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-2xl p-5 hover:shadow-lg transition-shadow">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-2xl">{card.icon}</span>
+                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center text-white flex-shrink-0`}>
+                  {card.icon}
+                </div>
                 <span className={`text-xs font-medium bg-gradient-to-r ${card.color} bg-clip-text text-transparent`}>
                   {card.change}
                 </span>
