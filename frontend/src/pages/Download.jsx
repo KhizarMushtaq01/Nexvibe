@@ -13,6 +13,7 @@ const PLATFORM_INFO = {
   ios: { label: 'iPhone & iPad', icon: <FaApple className="w-6 h-6" /> },
   windows: { label: 'Windows', icon: <FaWindows className="w-6 h-6" /> },
   macos: { label: 'Mac', icon: <FaApple className="w-6 h-6" /> },
+  other: { label: 'Your device', icon: <FiDownload className="w-6 h-6" /> },
 };
 
 const MANUAL_STEPS = {
@@ -20,9 +21,10 @@ const MANUAL_STEPS = {
   ios: ["Tap the Share icon in Safari's toolbar.", 'Scroll down and tap "Add to Home Screen".', 'Tap "Add" in the top-right corner.'],
   windows: ['Click the install icon in the address bar, or open the browser menu.', 'Choose "Install NexVibe".', 'Confirm to install.'],
   macos: ['Click the install icon in the address bar, or open the browser menu.', 'Choose "Install NexVibe".', 'Confirm to install.'],
+  other: ['Open this page in Chrome, Edge, or Safari for install options.'],
 };
 
-const PLATFORM_KEYS = Object.keys(PLATFORM_INFO);
+const NAMED_PLATFORM_KEYS = ['android', 'ios', 'windows', 'macos'];
 
 const isStandaloneDisplay = () =>
   window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -69,6 +71,8 @@ export default function Download() {
     }
   };
 
+  const cardKeys = platform === 'other' ? [...NAMED_PLATFORM_KEYS, 'other'] : NAMED_PLATFORM_KEYS;
+
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]">
       <PublicHeader />
@@ -83,7 +87,7 @@ export default function Download() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {PLATFORM_KEYS.map((p) => {
+          {cardKeys.map((p) => {
             const isCurrent = p === platform;
             return (
               <div key={p} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl p-6 text-center">

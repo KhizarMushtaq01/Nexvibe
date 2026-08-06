@@ -103,9 +103,11 @@ export default function StoriesPage() {
 
   const handleDelete = async () => {
     if (!currentStory) return;
-    if (!(await confirmDialog({ message: 'Delete this story?', danger: true, confirmLabel: 'Delete' }))) return;
+    setPaused(true);
+    const confirmed = await confirmDialog({ message: 'Delete this story?', danger: true, confirmLabel: 'Delete' });
+    if (!confirmed) { setPaused(false); return; }
     try { await storyAPI.deleteStory(currentStory._id); toast.success('Story deleted'); goNext(); }
-    catch { toast.error('Failed'); }
+    catch { toast.error('Failed'); setPaused(false); }
   };
 
   const loadViewers = async () => {
