@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { userAPI, authAPI } from '../../services/api';
 import Avatar from '../../components/common/Avatar';
+import { permissionLabel } from '../../lib/permissionLabel';
 import toast from 'react-hot-toast';
-import { FiArrowLeft, FiCamera, FiCheck } from 'react-icons/fi';
+import { FiArrowLeft, FiCamera, FiCheck, FiMic, FiBell, FiHardDrive } from 'react-icons/fi';
 
 const SECTIONS = [
   { key: 'profile', label: 'Edit profile' },
@@ -12,6 +13,7 @@ const SECTIONS = [
   { key: 'privacy', label: 'Privacy' },
   { key: 'security', label: 'Security' },
   { key: 'notifications', label: 'Notifications' },
+  { key: 'app', label: 'App' },
   { key: 'blocked', label: 'Blocked accounts' },
   { key: 'help', label: 'Help' },
 ];
@@ -61,6 +63,7 @@ export default function SettingsPage() {
           {activeSection === 'privacy' && <PrivacySection user={user} updateUser={updateUser} />}
           {activeSection === 'security' && <SecuritySection user={user} />}
           {activeSection === 'notifications' && <NotificationsSection user={user} updateUser={updateUser} />}
+          {activeSection === 'app' && <AppPermissionsSection />}
           {activeSection === 'blocked' && <BlockedSection />}
           {activeSection === 'help' && <HelpSection />}
         </div>
@@ -286,6 +289,89 @@ function NotificationsSection({ user, updateUser }) {
       <h2 className="text-xl font-bold hidden md:block mb-5">Notifications</h2>
       <div className="border border-[var(--border)] rounded-2xl divide-y divide-[var(--border)] overflow-hidden">
         {items.map(item => <ToggleRow key={item.key} label={item.label} value={settings[item.key]} onChange={v => handle(item.key, v)} />)}
+      </div>
+    </div>
+  );
+}
+
+function PermissionRow({ icon, label, state, onTest }) {
+  const { text, className } = permissionLabel(state);
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-[var(--border)] last:border-0 gap-4">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-secondary)]">{icon}</div>
+        <div>
+          <p className="text-sm font-medium">{label}</p>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium inline-block mt-0.5 ${className}`}>{text}</span>
+        </div>
+      </div>
+      {state === 'denied' ? (
+        <p className="text-xs text-[var(--text-muted)] max-w-[160px] text-right">Blocked in browser settings</p>
+      ) : (
+        <button onClick={onTest} className="text-sm font-semibold text-blue-500 hover:text-blue-600 flex-shrink-0">Test</button>
+      )}
+    </div>
+  );
+}
+
+function AppPermissionsSection() {
+  const [camera, setCamera] = useState('unsupported');
+  const [mic, setMic] = useState('unsupported');
+  const [notifications, setNotifications] = useState(() => {
+    if (typeof Notification === 'undefined') return 'unsupported';
+    return Notification.permission === 'default' ? 'prompt' : Notification.permission;
+  });
+  const [storage, setStorage] = useState('unsupported');
+
+  useEffect(() => {
+    const readState = async (name, setter) => {
+      try {
+        if (!navigator.permissions?.query) return;
+        const status = await navigator.permissions.query({ name });
+        setter(status.state);
+      } catch {
+        // Safari doesn't support querying camera/microphone this way;
+        // state stays 'unsupported' until the user clicks Test.
+      }
+    };
+    readState('camera', setCamera);
+    readState('microphone', setMic);
+    if (navigator.storage?.persisted) {
+      navigator.storage.persisted().then((persisted) => setStorage(persisted ? 'granted' : 'prompt'));
+    }
+  }, []);
+
+  const testMedia = async (kind, setter) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ [kind]: true });
+      stream.getTracks().forEach((track) => track.stop());
+      setter('granted');
+    } catch {
+      setter('denied');
+    }
+  };
+
+  const testNotifications = async () => {
+    if (typeof Notification === 'undefined') return setNotifications('unsupported');
+    const result = await Notification.requestPermission();
+    setNotifications(result === 'default' ? 'prompt' : result);
+  };
+
+  const testStorage = async () => {
+    if (!navigator.storage?.persist) return setStorage('unsupported');
+    const persisted = await navigator.storage.persist();
+    setStorage(persisted ? 'granted' : 'denied');
+  };
+
+  return (
+    <div className="max-w-[500px]">
+      <h2 className="text-xl font-bold hidden md:block mb-2">App & Permissions</h2>
+      <p className="text-sm text-[var(--text-muted)] mb-5">Manage what NexVibe can access on this device.</p>
+      <div className="border border-[var(--border)] rounded-2xl px-4">
+        <PermissionRow icon={<FiCamera className="w-4 h-4" />} label="Camera" state={camera} onTest={() => testMedia('video', setCamera)} />
+        <PermissionRow icon={<FiMic className="w-4 h-4" />} label="Microphone" state={mic} onTest={() => testMedia('audio', setMic)} />
+        <PermissionRow icon={<FiBell className="w-4 h-4" />} label="Notifications" state={notifications} onTest={testNotifications} />
+        <PermissionRow icon={<FiHardDrive className="w-4 h-4" />} label="Storage" state={storage} onTest={testStorage} />
       </div>
     </div>
   );
