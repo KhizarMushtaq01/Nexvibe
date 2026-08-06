@@ -8,6 +8,7 @@ import {
   FiLink, FiChevronLeft, FiChevronRight
 } from 'react-icons/fi';
 import { BsInstagram } from 'react-icons/bs';
+import toast from 'react-hot-toast';
 
 const BLOG_POSTS = {
   1: {
@@ -301,7 +302,7 @@ export default function BlogPostDetails() {
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
-    alert('Link copied to clipboard!');
+    toast.success('Link copied to clipboard!');
   };
 
   return (

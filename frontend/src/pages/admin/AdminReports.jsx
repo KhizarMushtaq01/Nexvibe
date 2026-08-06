@@ -4,6 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { adminAPI } from '../../services/api';
 import Avatar from '../../components/common/Avatar';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../context/DialogContext';
 
 const TYPE_TABS = [
   { value: '', label: 'All' },
@@ -39,6 +40,7 @@ export default function AdminReports() {
   const [targetType, setTargetType] = useState('');
   const [status, setStatus] = useState('pending');
   const [resolution, setResolution] = useState('');
+  const confirmDialog = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,7 +61,7 @@ export default function AdminReports() {
 
   const handleResolve = async (group, action) => {
     const verb = action === 'dismiss' ? 'Dismiss this report' : group.targetType === 'post' ? 'Remove this post' : 'Ban this user';
-    if (!confirm(`${verb}?`)) return;
+    if (!(await confirmDialog({ message: `${verb}?`, danger: action !== 'dismiss', confirmLabel: verb.split(' ')[0] }))) return;
     try {
       await adminAPI.resolveReport({ targetType: group.targetType, targetId: group.targetId, action });
       toast.success(action === 'dismiss' ? 'Dismissed' : 'Action taken');

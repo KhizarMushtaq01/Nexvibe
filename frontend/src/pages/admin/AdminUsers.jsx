@@ -6,8 +6,10 @@ import { Link } from 'react-router-dom';
 import Avatar from '../../components/common/Avatar';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../context/DialogContext';
 
 export default function AdminUsers() {
+  const confirmDialog = useConfirm();
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
@@ -54,7 +56,7 @@ export default function AdminUsers() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this user permanently? This cannot be undone.')) return;
+    if (!(await confirmDialog({ message: 'Delete this user permanently? This cannot be undone.', danger: true, confirmLabel: 'Delete' }))) return;
     try {
       await adminAPI.deleteUser(id);
       setUsers(prev => prev.filter(u => u._id !== id));

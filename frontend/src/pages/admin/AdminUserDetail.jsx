@@ -7,9 +7,12 @@ import Avatar from '../../components/common/Avatar';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm, usePrompt } from '../../context/DialogContext';
 
 export default function AdminUserDetail() {
   const { user: currentUser } = useAuth();
+  const confirmDialog = useConfirm();
+  const promptDialog = usePrompt();
   const { id } = useParams();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -20,7 +23,7 @@ export default function AdminUserDetail() {
   }, [id]);
 
   const handleBan = async () => {
-    const reason = prompt('Ban reason:');
+    const reason = await promptDialog({ title: 'Ban user', inputPlaceholder: 'Reason for ban' });
     if (reason === null) return;
     try {
       await adminAPI.banUser(id, { reason });
@@ -45,7 +48,7 @@ export default function AdminUserDetail() {
   };
 
   const handleDelete = async () => {
-    if (!confirm('Permanently delete this user?')) return;
+    if (!(await confirmDialog({ message: 'Permanently delete this user?', danger: true, confirmLabel: 'Delete' }))) return;
     try { await adminAPI.deleteUser(id); toast.success('Deleted'); navigate('/admin/users'); }
     catch { toast.error('Failed'); }
   };

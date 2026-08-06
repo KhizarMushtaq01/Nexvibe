@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 import { FiX, FiSend, FiMoreHorizontal, FiPause, FiPlay, FiHeart } from 'react-icons/fi';
 import { BsChevronLeft, BsChevronRight } from 'react-icons/bs';
+import { useConfirm } from '../../context/DialogContext';
 
 const STORY_DURATION = 5000;
 
@@ -14,6 +15,7 @@ export default function StoriesPage() {
   const { userId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const confirmDialog = useConfirm();
   const [groups, setGroups] = useState([]);
   const [groupIdx, setGroupIdx] = useState(0);
   const [storyIdx, setStoryIdx] = useState(0);
@@ -101,7 +103,7 @@ export default function StoriesPage() {
 
   const handleDelete = async () => {
     if (!currentStory) return;
-    if (!window.confirm('Delete this story?')) return;
+    if (!(await confirmDialog({ message: 'Delete this story?', danger: true, confirmLabel: 'Delete' }))) return;
     try { await storyAPI.deleteStory(currentStory._id); toast.success('Story deleted'); goNext(); }
     catch { toast.error('Failed'); }
   };

@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import Avatar from '../../components/common/Avatar';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useConfirm } from '../../context/DialogContext';
 
 export default function AdminPosts() {
   const [posts, setPosts] = useState([]);
@@ -13,6 +14,7 @@ export default function AdminPosts() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const confirmDialog = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -28,7 +30,7 @@ export default function AdminPosts() {
   useEffect(() => { load(); }, [load]);
 
   const handleDelete = async (id) => {
-    if (!confirm('Remove this post?')) return;
+    if (!(await confirmDialog({ message: 'Remove this post?', danger: true, confirmLabel: 'Remove' }))) return;
     try {
       await adminAPI.deletePost(id);
       setPosts(prev => prev.filter(p => p._id !== id));
