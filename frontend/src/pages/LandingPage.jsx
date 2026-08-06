@@ -40,10 +40,10 @@ const PHONE_SCREENS = [
 ];
 
 const STATS = [
-  { number: '2B+', label: 'Active users worldwide', icon: <FiUsers className="w-5 h-5" /> },
-  { number: '100M+', label: 'Photos shared daily', icon: <BsImage className="w-5 h-5" /> },
-  { number: '4.5B+', label: 'Likes every day', icon: <FiHeart className="w-5 h-5" /> },
-  { number: '140+', label: 'Countries connected', icon: <FiGlobe className="w-5 h-5" /> },
+  { end: 2, decimals: 0, suffix: 'B+', label: 'Active users worldwide', icon: <FiUsers className="w-5 h-5" /> },
+  { end: 100, decimals: 0, suffix: 'M+', label: 'Photos shared daily', icon: <BsImage className="w-5 h-5" /> },
+  { end: 4.5, decimals: 1, suffix: 'B+', label: 'Likes every day', icon: <FiHeart className="w-5 h-5" /> },
+  { end: 140, decimals: 0, suffix: '+', label: 'Countries connected', icon: <FiGlobe className="w-5 h-5" /> },
 ];
 
 const FEATURES = [
@@ -174,6 +174,29 @@ function MockStoryBubble({ name, avatar, hasRing = true, delay = 0 }) {
       <span className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate w-12 text-center">{name}</span>
     </div>
   );
+}
+
+// ─── Animated count-up, starts once `active` becomes true ───
+function CountUpStat({ end, decimals = 0, suffix = '', active, duration = 1800 }) {
+  const [value, setValue] = useState(0);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (!active || started.current) return;
+    started.current = true;
+    const startTime = performance.now();
+    let frame;
+    const animate = (now) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(end * eased);
+      if (progress < 1) frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [active, end, duration]);
+
+  return <>{value.toFixed(decimals)}{suffix}</>;
 }
 
 export default function LandingPage() {
@@ -368,7 +391,9 @@ export default function LandingPage() {
           {STATS.map((s) => (
             <div key={s.label} className="text-center">
               <div className="flex justify-center mb-2 text-pink-500">{s.icon}</div>
-              <p className="text-3xl sm:text-4xl font-black text-gradient mb-1">{s.number}</p>
+              <p className="text-3xl sm:text-4xl font-black text-gradient mb-1">
+                <CountUpStat end={s.end} decimals={s.decimals} suffix={s.suffix} active={statsVisible} />
+              </p>
               <p className="text-sm text-[var(--text-muted)]">{s.label}</p>
             </div>
           ))}

@@ -1,6 +1,6 @@
 // pages/Privacy.jsx
 import { Link } from 'react-router-dom';
-import { FiArrowLeft, FiShield, FiLock, FiDatabase, FiShare2, FiMail, FiGlobe } from 'react-icons/fi';
+import { FiArrowLeft, FiShield, FiLock, FiDatabase, FiShare2, FiMail, FiGlobe, FiPhone } from 'react-icons/fi';
 import PublicHeader from '../components/common/PublicHeader';
 
 export default function Privacy() {
@@ -21,9 +21,10 @@ export default function Privacy() {
           <p className="text-sm text-[var(--text-muted)] mb-8">Last updated: {new Date().toLocaleDateString()}</p>
 
           <div className="prose prose-neutral dark:prose-invert max-w-none">
-            <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-2xl p-4 mb-8">
+            <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-2xl p-4 mb-8 flex items-start gap-2">
+              <FiLock className="w-4 h-4 text-green-800 dark:text-green-200 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-green-800 dark:text-green-200">
-                🔒 Your privacy is important to us. This policy explains how we collect, use, and protect your personal information.
+                Your privacy is important to us. This policy explains how we collect, use, and protect your personal information.
               </p>
             </div>
 
@@ -158,9 +159,9 @@ export default function Privacy() {
                 For privacy-related questions or to exercise your rights:
               </p>
               <div className="mt-3 p-4 bg-[var(--bg-primary)] rounded-xl border border-[var(--border)]">
-                <p className="text-sm">📧 Email: privacy@nexvibe.com</p>
-                <p className="text-sm mt-2">🌐 Web: nexvibe.com/privacy-request</p>
-                <p className="text-sm mt-2">📞 Privacy Hotline: 1-800-SOCIAL-PRIVACY</p>
+                <p className="text-sm flex items-center gap-1.5"><FiMail className="w-4 h-4 flex-shrink-0" /> Email: privacy@nexvibe.com</p>
+                <p className="text-sm mt-2 flex items-center gap-1.5"><FiGlobe className="w-4 h-4 flex-shrink-0" /> Web: nexvibe.com/privacy-request</p>
+                <p className="text-sm mt-2 flex items-center gap-1.5"><FiPhone className="w-4 h-4 flex-shrink-0" /> Privacy Hotline: 1-800-SOCIAL-PRIVACY</p>
               </div>
             </section>
 

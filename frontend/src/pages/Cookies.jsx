@@ -1,6 +1,6 @@
 // pages/Cookies.jsx
 import { Link } from 'react-router-dom';
-import { FiArrowLeft, FiCheck, FiX, FiSettings } from 'react-icons/fi';
+import { FiArrowLeft, FiCheck, FiX, FiSettings, FiInfo, FiMail, FiGlobe } from 'react-icons/fi';
 import { useState } from 'react';
 import PublicHeader from '../components/common/PublicHeader';
 
@@ -144,9 +144,10 @@ export default function Cookies() {
                 <li>Use private/incognito browsing modes</li>
                 <li>Install browser extensions for additional cookie control</li>
               </ul>
-              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-4 mt-4">
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-4 mt-4 flex items-start gap-2">
+                <FiInfo className="w-4 h-4 text-blue-800 dark:text-blue-200 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-blue-800 dark:text-blue-200">
-                  💡 Note: Blocking certain cookies may impact site functionality. Some features may not work as expected.
+                  Note: Blocking certain cookies may impact site functionality. Some features may not work as expected.
                 </p>
               </div>
             </section>
@@ -196,8 +197,8 @@ export default function Cookies() {
                 If you have questions about our use of cookies, please contact:
               </p>
               <div className="mt-3 p-4 bg-[var(--bg-primary)] rounded-xl border border-[var(--border)]">
-                <p className="text-sm">📧 Email: cookies@nexvibe.com</p>
-                <p className="text-sm mt-2">🌐 Web: nexvibe.com/cookie-preferences</p>
+                <p className="text-sm flex items-center gap-1.5"><FiMail className="w-4 h-4 flex-shrink-0" /> Email: cookies@nexvibe.com</p>
+                <p className="text-sm mt-2 flex items-center gap-1.5"><FiGlobe className="w-4 h-4 flex-shrink-0" /> Web: nexvibe.com/cookie-preferences</p>
               </div>
             </section>
 
