@@ -71,13 +71,13 @@ export default function AdminReports() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Reports</h1>
         <p className="text-[var(--text-secondary)] text-sm">{total.toLocaleString()} {status}</p>
       </div>
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex flex-wrap gap-2 mb-3">
         {STATUS_TABS.map(t => (
           <button key={t.value} onClick={() => { setStatus(t.value); setResolution(''); setPage(1); }}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors
@@ -87,7 +87,7 @@ export default function AdminReports() {
         ))}
       </div>
 
-      <div className={`flex gap-2 ${status === 'resolved' ? 'mb-3' : 'mb-5'}`}>
+      <div className={`flex flex-wrap gap-2 ${status === 'resolved' ? 'mb-3' : 'mb-5'}`}>
         {TYPE_TABS.map(t => (
           <button key={t.value} onClick={() => { setTargetType(t.value); setPage(1); }}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors
@@ -98,7 +98,7 @@ export default function AdminReports() {
       </div>
 
       {status === 'resolved' && (
-        <div className="flex gap-2 mb-5">
+        <div className="flex flex-wrap gap-2 mb-5">
           {RESOLUTION_TABS.map(t => (
             <button key={t.value} onClick={() => { setResolution(t.value); setPage(1); }}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors
@@ -122,11 +122,11 @@ export default function AdminReports() {
           </div>
         ) : (
           groups.map(g => (
-            <div key={`${g.targetType}-${g.targetId}-${g.resolvedAt || 'pending'}`} className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-2xl p-4 flex items-center gap-4">
+            <div key={`${g.targetType}-${g.targetId}-${g.resolvedAt || 'pending'}`} className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-4">
               {g.targetMissing ? (
                 <div className="flex-1 text-sm text-[var(--text-muted)]">This {g.targetType} no longer exists.</div>
               ) : g.targetType === 'post' ? (
-                <>
+                <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-xl overflow-hidden bg-[var(--bg-tertiary)] flex-shrink-0">
                     {g.target.media?.[0] && (
                       g.target.media[0].type === 'video'
@@ -138,9 +138,9 @@ export default function AdminReports() {
                     <p className="text-sm font-semibold">@{g.target.author?.username}</p>
                     {g.target.caption && <p className="text-xs text-[var(--text-secondary)] truncate">{g.target.caption}</p>}
                   </div>
-                </>
+                </div>
               ) : g.targetType === 'user' ? (
-                <>
+                <div className="flex items-center gap-3">
                   <Avatar src={g.target.avatar} size={44} alt={g.target.fullName} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold flex items-center gap-1.5">
@@ -153,7 +153,7 @@ export default function AdminReports() {
                     </p>
                     <p className="text-xs text-[var(--text-secondary)]">{g.target.fullName}</p>
                   </div>
-                </>
+                </div>
               ) : (
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-[var(--text-muted)] mb-1">Reported message from @{g.target.sender?.username}</p>
@@ -219,7 +219,7 @@ export default function AdminReports() {
       </div>
 
       {pages > 1 && (
-        <div className="flex items-center justify-between mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-6">
           <p className="text-sm text-[var(--text-muted)]">Page {page} of {pages} · {total} total</p>
           <div className="flex gap-2">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-outline px-3 py-1.5 text-sm disabled:opacity-50">← Prev</button>

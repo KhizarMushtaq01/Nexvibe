@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { userAPI, postAPI, messageAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import Avatar from '../../components/common/Avatar';
+import FollowButton from '../../components/common/FollowButton';
 import PostGrid from '../../components/post/PostGrid';
 import FollowersModal from '../../components/profile/FollowersModal';
 import toast from 'react-hot-toast';
@@ -22,7 +23,6 @@ export default function ProfilePage() {
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [followersModal, setFollowersModal] = useState(null);
-  const [followLoading, setFollowLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -49,22 +49,15 @@ export default function ProfilePage() {
     } catch {} finally { setPostsLoading(false); }
   };
 
-  const handleFollow = async () => {
-    setFollowLoading(true);
-    try {
-      const { data } = await userAPI.followUser(profile._id);
-      if (data.requestSent) { setRequestSent(true); toast.success('Follow request sent'); }
-      else {
-        setIsFollowing(data.isFollowing);
-        setProfile(p => ({
-          ...p,
-          followers: data.isFollowing
-            ? [...(p.followers || []), { _id: currentUser._id }]
-            : (p.followers || []).filter(f => (f._id || f) !== currentUser._id)
-        }));
-      }
-    } catch { toast.error('Failed'); }
-    finally { setFollowLoading(false); }
+  const handleFollowToggle = ({ isFollowing: nextFollowing, requestSent: nextRequested }) => {
+    setIsFollowing(nextFollowing);
+    setRequestSent(nextRequested);
+    setProfile(p => ({
+      ...p,
+      followers: nextFollowing
+        ? [...(p.followers || []), { _id: currentUser._id }]
+        : (p.followers || []).filter(f => (f._id || f) !== currentUser._id)
+    }));
   };
 
   const handleMessage = async () => {
@@ -127,11 +120,7 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="flex gap-2 flex-wrap">
-                <button onClick={handleFollow} disabled={followLoading}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-60
-                    ${isFollowing ? 'btn-outline' : requestSent ? 'btn-outline opacity-70' : 'btn-primary'}`}>
-                  {followLoading ? '…' : isFollowing ? 'Following' : requestSent ? 'Requested' : 'Follow'}
-                </button>
+                <FollowButton userId={profile._id} isFollowing={isFollowing} requestSent={requestSent} onToggle={handleFollowToggle} />
                 {isFollowing && (
                   <button onClick={handleMessage} className="btn-outline text-sm px-4 py-1.5 font-semibold">Message</button>
                 )}

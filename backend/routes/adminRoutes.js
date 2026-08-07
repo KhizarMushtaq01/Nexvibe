@@ -14,6 +14,8 @@ router.post('/users/:id/unban', ...isAdmin, admin.unbanUser);
 router.post('/users/:id/verify', ...isAdmin, admin.verifyUser);
 router.put('/users/:id/role', ...adminOnly, admin.changeUserRole);
 router.delete('/users/:id', ...adminOnly, admin.deleteUserAdmin);
+router.get('/team', ...isAdmin, admin.getTeamMembers);
+router.post('/team', ...adminOnly, admin.createTeamMember);
 router.get('/posts', ...isAdmin, admin.getAllPosts);
 router.delete('/posts/:id', ...isAdmin, admin.deletePostAdmin);
 router.post('/notifications/send', ...isAdmin, admin.sendSystemNotification);

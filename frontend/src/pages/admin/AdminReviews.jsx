@@ -59,13 +59,13 @@ export default function AdminReviews() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Reviews</h1>
         <p className="text-[var(--text-secondary)] text-sm">{total.toLocaleString()} {status}</p>
       </div>
 
-      <div className="flex gap-2 mb-5">
+      <div className="flex flex-wrap gap-2 mb-5">
         {STATUS_TABS.map((t) => (
           <button key={t.value} onClick={() => { setStatus(t.value); setPage(1); }}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors
@@ -129,7 +129,7 @@ export default function AdminReviews() {
       </div>
 
       {pages > 1 && (
-        <div className="flex items-center justify-between mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-6">
           <p className="text-sm text-[var(--text-muted)]">Page {page} of {pages} · {total} total</p>
           <div className="flex gap-2">
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-outline px-3 py-1.5 text-sm disabled:opacity-50">← Prev</button>

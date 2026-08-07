@@ -2,6 +2,7 @@ import Post from '../models/Post.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 import { uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary.js';
+import { getHiddenPrivateAuthorIds } from '../utils/privacy.js';
 import fs from 'fs';
 
 // @desc    Create post
@@ -129,12 +130,14 @@ export const getExplorePosts = async (req, res) => {
     const { page = 1, limit = 18 } = req.query;
     const currentUser = await User.findById(req.user._id);
     const excluded = currentUser ? [...currentUser.following, req.user._id, ...currentUser.blockedUsers] : [];
+    const hiddenAuthorIds = await getHiddenPrivateAuthorIds(req.user);
 
     const posts = await Post.find({
       visibility: 'public',
       isDeleted: false,
       isArchived: false,
-      'media.0': { $exists: true }
+      'media.0': { $exists: true },
+      author: { $nin: hiddenAuthorIds }
     })
       .populate('author', 'username fullName avatar isVerified')
       .sort({ likesCount: -1, createdAt: -1 })
@@ -168,6 +171,12 @@ export const getPost = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Post not found' });
     }
 
+    const isOwner = !!req.user && post.author._id.toString() === req.user._id.toString();
+    const isFollower = !!req.user && req.user.following.some(id => id.toString() === post.author._id.toString());
+    if (post.author.isPrivate && !isOwner && !isFollower) {
+      return res.status(403).json({ success: false, message: 'This account is private' });
+    }
+
     // Increment view count
     post.viewCount += 1;
     await post.save();
@@ -183,6 +192,16 @@ export const getPost = async (req, res) => {
 export const getUserPosts = async (req, res) => {
   try {
     const { page = 1, limit = 12, type } = req.query;
+    const isOwnProfile = req.user && req.user._id.toString() === req.params.userId;
+
+    if (!isOwnProfile) {
+      const author = await User.findById(req.params.userId).select('isPrivate');
+      const isFollower = !!req.user && req.user.following.some(id => id.toString() === req.params.userId);
+      if (author?.isPrivate && !isFollower) {
+        return res.json({ success: true, posts: [], total: 0, hasMore: false });
+      }
+    }
+
     const query = {
       author: req.params.userId,
       isDeleted: false,
@@ -190,8 +209,6 @@ export const getUserPosts = async (req, res) => {
     };
 
     if (type) query.type = type;
-
-    const isOwnProfile = req.user && req.user._id.toString() === req.params.userId;
     if (!isOwnProfile) query.visibility = { $in: ['public', 'followers'] };
 
     const posts = await Post.find(query)
@@ -545,17 +562,21 @@ export const getTrending = async (req, res) => {
 export const getHashtagPosts = async (req, res) => {
   try {
     const { page = 1, limit = 18 } = req.query;
-    const posts = await Post.find({
+    const hiddenAuthorIds = await getHiddenPrivateAuthorIds(req.user);
+    const query = {
       hashtags: req.params.tag.toLowerCase(),
       visibility: 'public',
-      isDeleted: false
-    })
+      isDeleted: false,
+      author: { $nin: hiddenAuthorIds }
+    };
+
+    const posts = await Post.find(query)
       .populate('author', 'username fullName avatar isVerified')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
 
-    const total = await Post.countDocuments({ hashtags: req.params.tag.toLowerCase(), visibility: 'public', isDeleted: false });
+    const total = await Post.countDocuments(query);
     res.json({ success: true, posts, total });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

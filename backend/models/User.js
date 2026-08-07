@@ -75,8 +75,14 @@ const userSchema = new mongoose.Schema({
   // Account type & status
   role: {
     type: String,
-    enum: ['user', 'moderator', 'admin', 'superadmin'],
+    enum: ['user', 'moderator', 'team_member', 'admin', 'superadmin'],
     default: 'user'
+  },
+  department: {
+    type: String,
+    trim: true,
+    maxlength: [60, 'Department cannot exceed 60 characters'],
+    default: ''
   },
   accountType: {
     type: String,

@@ -2,15 +2,51 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { notificationAPI, messageAPI } from '../../services/api';
+import { notificationAPI, messageAPI, userAPI } from '../../services/api';
 import { useSocket } from '../../context/SocketContext';
 import Avatar from '../common/Avatar';
 import NotificationsDropdown from '../common/NotificationsDropdown';
+import FollowRequestsDropdown from '../common/FollowRequestsDropdown';
 import CreatePostModal from '../post/CreatePostModal';
 
-import { FiHome, FiSearch, FiCompass, FiPlay, FiMessageCircle, FiHeart, FiPlusSquare, FiBookmark, FiSettings, FiMenu, FiSun, FiMoon, FiLogOut } from 'react-icons/fi';
+import { FiHome, FiSearch, FiCompass, FiPlay, FiMessageCircle, FiBell, FiUserPlus, FiPlusSquare, FiBookmark, FiSettings, FiMenu, FiSun, FiMoon, FiLogOut } from 'react-icons/fi';
 import { BsGrid3X3Gap, BsPersonBoundingBox } from 'react-icons/bs';
 import { MdOutlineAdminPanelSettings } from 'react-icons/md';
+
+function NavBadge({ count }) {
+  if (!(count > 0)) return null;
+  return (
+    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+      {count > 9 ? '9+' : count}
+    </span>
+  );
+}
+
+function MoreMenuItems({ isDark, toggleTheme, role, onNavigate, onLogout }) {
+  return (
+    <>
+      <button onClick={toggleTheme} className="flex items-center gap-3 px-4 py-3 w-full hover:bg-[var(--bg-tertiary)] text-sm transition-colors">
+        {isDark ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
+        {isDark ? 'Light mode' : 'Dark mode'}
+      </button>
+      <NavLink to="/saved" onClick={onNavigate} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-tertiary)] text-sm transition-colors">
+        <FiBookmark className="w-4 h-4" /> Saved
+      </NavLink>
+      <NavLink to="/settings" onClick={onNavigate} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-tertiary)] text-sm transition-colors">
+        <FiSettings className="w-4 h-4" /> Settings
+      </NavLink>
+      {['admin', 'moderator', 'superadmin'].includes(role) && (
+        <NavLink to="/admin" onClick={onNavigate} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-tertiary)] text-sm transition-colors">
+          <MdOutlineAdminPanelSettings className="w-4 h-4" /> Admin Panel
+        </NavLink>
+      )}
+      <div className="border-t border-[var(--border)]" />
+      <button onClick={onLogout} className="flex items-center gap-3 px-4 py-3 w-full hover:bg-[var(--bg-tertiary)] text-sm text-red-500 transition-colors">
+        <FiLogOut className="w-4 h-4" /> Log out
+      </button>
+    </>
+  );
+}
 
 export default function MainLayout() {
   const { user, logout } = useAuth();
@@ -23,10 +59,19 @@ export default function MainLayout() {
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [showNotifs, setShowNotifs] = useState(false);
+  const [followRequests, setFollowRequests] = useState([]);
+  const [showRequests, setShowRequests] = useState(false);
 
   const isMessages = location.pathname.startsWith('/messages');
   const isReels = location.pathname.startsWith('/reels');
   const collapsed = isMessages || isReels;
+
+  const loadFollowRequests = async () => {
+    try {
+      const { data } = await userAPI.getFollowRequests();
+      setFollowRequests(data.requests || []);
+    } catch {}
+  };
 
   useEffect(() => {
     const fetch = async () => {
@@ -37,13 +82,19 @@ export default function MainLayout() {
       } catch {}
     };
     fetch();
+    loadFollowRequests();
   }, []);
 
   useEffect(() => {
-    const u1 = on('notification:receive', () => setUnreadNotifs(p => p + 1));
+    const u1 = on('notification:receive', () => { setUnreadNotifs(p => p + 1); loadFollowRequests(); });
     const u2 = on('message:receive', () => setUnreadMessages(p => p + 1));
     return () => { u1?.(); u2?.(); };
   }, [on]);
+
+  const handleRespondRequest = async (requesterId, action) => {
+    await userAPI.respondFollowRequest(requesterId, action);
+    setFollowRequests(prev => prev.filter(r => r._id !== requesterId));
+  };
 
   const navItems = [
     { to: '/feed', icon: FiHome, label: 'Home' },
@@ -51,7 +102,8 @@ export default function MainLayout() {
     { to: '/explore', icon: FiCompass, label: 'Explore' },
     { to: '/reels', icon: FiPlay, label: 'Reels' },
     { to: '/messages', icon: FiMessageCircle, label: 'Messages', badge: unreadMessages },
-    { label: 'Notifications', icon: FiHeart, badge: unreadNotifs, onClick: () => { setShowNotifs(v => !v); setUnreadNotifs(0); } },
+    { label: 'Notifications', icon: FiBell, badge: unreadNotifs, active: showNotifs, onClick: () => { setShowNotifs(v => !v); setUnreadNotifs(0); } },
+    { label: 'Follow Requests', icon: FiUserPlus, badge: followRequests.length, active: showRequests, onClick: () => setShowRequests(v => !v) },
     { label: 'Create', icon: FiPlusSquare, onClick: () => setShowCreate(true) },
   ];
 
@@ -79,11 +131,7 @@ export default function MainLayout() {
                     <>
                       <div className="relative flex-shrink-0">
                         <Icon className={`w-6 h-6 transition-transform ${isActive ? 'scale-110' : ''}`} strokeWidth={isActive ? 2.5 : 1.8} />
-                        {item.badge > 0 && (
-                          <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
-                            {item.badge > 9 ? '9+' : item.badge}
-                          </span>
-                        )}
+                        <NavBadge count={item.badge} />
                       </div>
                       {!collapsed && <span className="text-sm">{item.label}</span>}
                     </>
@@ -92,19 +140,14 @@ export default function MainLayout() {
               );
             }
             return (
-              <button key={i} onClick={item.onClick} className="sidebar-link w-full text-left relative">
+              <button key={i} onClick={item.onClick} aria-pressed={!!item.active}
+                data-toggle={item.label === 'Notifications' ? 'notifications' : item.label === 'Follow Requests' ? 'follow-requests' : undefined}
+                className={`sidebar-link w-full text-left relative ${item.active ? 'bg-[var(--bg-tertiary)] font-bold' : ''}`}>
                 <div className="relative flex-shrink-0">
-                  <Icon className="w-6 h-6" strokeWidth={1.8} />
-                  {item.badge > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
-                      {item.badge > 9 ? '9+' : item.badge}
-                    </span>
-                  )}
+                  <Icon className={`w-6 h-6 transition-transform ${item.active ? 'scale-110' : ''}`} strokeWidth={item.active ? 2.2 : 1.8} />
+                  <NavBadge count={item.badge} />
                 </div>
                 {!collapsed && <span className="text-sm">{item.label}</span>}
-                {item.label === 'Notifications' && showNotifs && (
-                  <NotificationsDropdown onClose={() => setShowNotifs(false)} />
-                )}
               </button>
             );
           })}
@@ -125,32 +168,59 @@ export default function MainLayout() {
           </button>
           {showMore && (
             <div className="absolute bottom-14 left-2 w-56 bg-[var(--bg-primary)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden animate-scale-in z-50">
-              <button onClick={toggleTheme} className="flex items-center gap-3 px-4 py-3 w-full hover:bg-[var(--bg-tertiary)] text-sm transition-colors">
-                {isDark ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
-                {isDark ? 'Light mode' : 'Dark mode'}
-              </button>
-              <NavLink to="/saved" onClick={() => setShowMore(false)} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-tertiary)] text-sm transition-colors">
-                <FiBookmark className="w-4 h-4" /> Saved
-              </NavLink>
-              <NavLink to="/settings" onClick={() => setShowMore(false)} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-tertiary)] text-sm transition-colors">
-                <FiSettings className="w-4 h-4" /> Settings
-              </NavLink>
-              {['admin','moderator','superadmin'].includes(user?.role) && (
-                <NavLink to="/admin" onClick={() => setShowMore(false)} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-tertiary)] text-sm transition-colors">
-                  <MdOutlineAdminPanelSettings className="w-4 h-4" /> Admin Panel
-                </NavLink>
-              )}
-              <div className="border-t border-[var(--border)]" />
-              <button onClick={logout} className="flex items-center gap-3 px-4 py-3 w-full hover:bg-[var(--bg-tertiary)] text-sm text-red-500 transition-colors">
-                <FiLogOut className="w-4 h-4" /> Log out
-              </button>
+              <MoreMenuItems isDark={isDark} toggleTheme={toggleTheme} role={user?.role}
+                onNavigate={() => setShowMore(false)} onLogout={logout} />
             </div>
           )}
         </div>
       </aside>
 
+      {/* Mobile top bar -- below the lg breakpoint the sidebar is hidden, so
+          Search/Messages/Notifications/Follow Requests need a home here or
+          they're unreachable on phones and small tablets. */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-[var(--bg-primary)] border-b border-[var(--border)] flex items-center justify-between px-4">
+        <span className="text-lg font-black text-gradient cursor-pointer select-none" onClick={() => navigate('/feed')}>NexVibe</span>
+        <div className="flex items-center gap-4">
+          <NavLink to="/search"
+            className={({ isActive }) => `relative p-1.5 rounded-full transition-colors ${isActive ? 'bg-[var(--bg-tertiary)]' : ''}`}>
+            {({ isActive }) => <FiSearch className="w-6 h-6" strokeWidth={isActive ? 2.2 : 1.8} />}
+          </NavLink>
+          <NavLink to="/messages"
+            className={({ isActive }) => `relative p-1.5 rounded-full transition-colors ${isActive ? 'bg-[var(--bg-tertiary)]' : ''}`}>
+            {({ isActive }) => (
+              <>
+                <FiMessageCircle className="w-6 h-6" strokeWidth={isActive ? 2.2 : 1.8} />
+                <NavBadge count={unreadMessages} />
+              </>
+            )}
+          </NavLink>
+          <button data-toggle="notifications" onClick={() => { setShowNotifs(v => !v); setUnreadNotifs(0); }} aria-pressed={showNotifs}
+            className={`relative p-1.5 rounded-full transition-colors ${showNotifs ? 'bg-[var(--bg-tertiary)]' : ''}`}>
+            <FiBell className="w-6 h-6" strokeWidth={showNotifs ? 2.2 : 1.8} />
+            <NavBadge count={unreadNotifs} />
+          </button>
+          <button data-toggle="follow-requests" onClick={() => setShowRequests(v => !v)} aria-pressed={showRequests}
+            className={`relative p-1.5 rounded-full transition-colors ${showRequests ? 'bg-[var(--bg-tertiary)]' : ''}`}>
+            <FiUserPlus className="w-6 h-6" strokeWidth={showRequests ? 2.2 : 1.8} />
+            <NavBadge count={followRequests.length} />
+          </button>
+          <div className="relative">
+            <button data-toggle="more" onClick={() => setShowMore(v => !v)} aria-pressed={showMore}
+              className={`relative p-1.5 rounded-full transition-colors ${showMore ? 'bg-[var(--bg-tertiary)]' : ''}`}>
+              <FiMenu className="w-6 h-6" strokeWidth={showMore ? 2.2 : 1.8} />
+            </button>
+            {showMore && (
+              <div className="absolute right-0 top-12 w-56 bg-[var(--bg-primary)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden animate-scale-in z-50">
+                <MoreMenuItems isDark={isDark} toggleTheme={toggleTheme} role={user?.role}
+                  onNavigate={() => setShowMore(false)} onLogout={logout} />
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
       {/* Main content */}
-      <main className={`flex-1 transition-all duration-300 ${collapsed ? 'lg:ml-[72px]' : 'lg:ml-[245px]'} pb-16 lg:pb-0 min-w-0`}>
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? 'lg:ml-[72px]' : 'lg:ml-[245px]'} pt-14 lg:pt-0 pb-16 lg:pb-0 min-w-0`}>
         <Outlet />
       </main>
 
@@ -181,6 +251,10 @@ export default function MainLayout() {
         })}
       </nav>
 
+      {showNotifs && <NotificationsDropdown onClose={() => setShowNotifs(false)} />}
+      {showRequests && (
+        <FollowRequestsDropdown requests={followRequests} onRespond={handleRespondRequest} onClose={() => setShowRequests(false)} />
+      )}
       {showCreate && <CreatePostModal onClose={() => setShowCreate(false)} />}
     </div>
   );

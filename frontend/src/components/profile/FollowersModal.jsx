@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { userAPI } from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
 import Avatar from '../common/Avatar';
-import toast from 'react-hot-toast';
+import FollowButton from '../common/FollowButton';
 import { FiX } from 'react-icons/fi';
 
 export default function FollowersModal({ userId, type, onClose }) {
-  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [followed, setFollowed] = useState(new Set());
 
   useEffect(() => {
     const fn = type === 'followers' ? userAPI.getFollowers : userAPI.getFollowing;
@@ -19,13 +16,6 @@ export default function FollowersModal({ userId, type, onClose }) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [userId, type]);
-
-  const handleFollow = async (id) => {
-    try {
-      await userAPI.followUser(id);
-      setFollowed(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
-    } catch { toast.error('Failed'); }
-  };
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -56,13 +46,7 @@ export default function FollowersModal({ userId, type, onClose }) {
                 </Link>
                 <p className="text-xs text-[var(--text-muted)] truncate">{u.fullName}</p>
               </div>
-              {u._id !== currentUser?._id && (
-                <button onClick={() => handleFollow(u._id)}
-                  className={`text-sm font-semibold px-3 py-1.5 rounded-lg transition-all flex-shrink-0
-                    ${followed.has(u._id) ? 'btn-outline' : 'btn-primary'}`}>
-                  {followed.has(u._id) ? 'Following' : 'Follow'}
-                </button>
-              )}
+              <FollowButton userId={u._id} isFollowing={u.isFollowing} size="sm" />
             </div>
           ))}
         </div>

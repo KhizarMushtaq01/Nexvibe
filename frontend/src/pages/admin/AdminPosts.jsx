@@ -39,7 +39,7 @@ export default function AdminPosts() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">Posts</h1>
@@ -122,7 +122,7 @@ export default function AdminPosts() {
 
       {/* Pagination */}
       {pages > 1 && (
-        <div className="flex items-center justify-between mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-6">
           <p className="text-sm text-[var(--text-muted)]">
             Page {page} of {pages} · {total} total
           </p>

@@ -422,7 +422,9 @@ export const getFollowers = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).populate('followers', 'username fullName avatar isVerified bio');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, followers: user.followers });
+    const myFollowing = req.user.following.map(id => id.toString());
+    const followers = user.followers.map(f => ({ ...f.toObject(), isFollowing: myFollowing.includes(f._id.toString()) }));
+    res.json({ success: true, followers });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -434,7 +436,9 @@ export const getFollowing = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).populate('following', 'username fullName avatar isVerified bio');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, following: user.following });
+    const myFollowing = req.user.following.map(id => id.toString());
+    const following = user.following.map(f => ({ ...f.toObject(), isFollowing: myFollowing.includes(f._id.toString()) }));
+    res.json({ success: true, following });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

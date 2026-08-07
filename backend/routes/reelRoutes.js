@@ -2,6 +2,7 @@ import express from 'express';
 import Post from '../models/Post.js';
 import { protect } from '../middleware/authMiddleware.js';
 import User from '../models/User.js';
+import { getHiddenPrivateAuthorIds } from '../utils/privacy.js';
 
 const router = express.Router();
 
@@ -10,6 +11,7 @@ router.get('/feed', protect, async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
     const currentUser = await User.findById(req.user._id);
+    const hiddenAuthorIds = await getHiddenPrivateAuthorIds(req.user);
 
     const reels = await Post.find({
       type: 'reel',
@@ -18,7 +20,7 @@ router.get('/feed', protect, async (req, res) => {
       $or: [
         { author: req.user._id },
         { author: { $in: currentUser.following }, visibility: { $in: ['public', 'followers'] } },
-        { visibility: 'public' }
+        { visibility: 'public', author: { $nin: hiddenAuthorIds } }
       ]
     })
       .populate('author', 'username fullName avatar isVerified')

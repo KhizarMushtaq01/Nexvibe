@@ -31,6 +31,7 @@ import CreatePage from './pages/main/CreatePage';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
+import AdminTeam from './pages/admin/AdminTeam';
 import AdminPosts from './pages/admin/AdminPosts';
 import AdminUserDetail from './pages/admin/AdminUserDetail';
 import AdminReports from './pages/admin/AdminReports';
@@ -130,6 +131,7 @@ function AppRoutes() {
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="users/:id" element={<AdminUserDetail />} />
+        <Route path="team" element={<AdminTeam />} />
         <Route path="posts" element={<AdminPosts />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="reviews" element={<AdminReviews />} />

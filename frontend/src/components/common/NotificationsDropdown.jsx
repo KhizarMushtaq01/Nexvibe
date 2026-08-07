@@ -16,7 +16,11 @@ export default function NotificationsDropdown({ onClose }) {
       .catch(() => {})
       .finally(() => setLoading(false));
 
-    const handler = e => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    // Exclude clicks on the toggle button itself -- otherwise this mousedown
+    // handler closes the panel first, then the button's own onClick fires
+    // right after and re-toggles it back open, so a second click on the
+    // bell would look like it does nothing.
+    const handler = e => { if (ref.current && !ref.current.contains(e.target) && !e.target.closest('[data-toggle]')) onClose(); };
     setTimeout(() => document.addEventListener('mousedown', handler), 150);
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose]);
@@ -37,8 +41,7 @@ export default function NotificationsDropdown({ onClose }) {
 
   return (
     <div ref={ref}
-      className="fixed z-50 w-[360px] bg-[var(--bg-primary)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden animate-scale-in"
-      style={{ left: 270, top: '50%', transform: 'translateY(-50%)' }}>
+      className="fixed z-50 inset-x-3 top-16 w-auto lg:inset-x-auto lg:top-1/2 lg:left-[270px] lg:-translate-y-1/2 lg:w-[360px] bg-[var(--bg-primary)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden animate-scale-in">
 
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
         <h3 className="font-bold">Notifications</h3>
@@ -50,7 +53,7 @@ export default function NotificationsDropdown({ onClose }) {
         )}
       </div>
 
-      <div className="overflow-y-auto" style={{ maxHeight: 480 }}>
+      <div className="overflow-y-auto max-h-[calc(100vh-180px)] lg:max-h-[480px]">
         {loading ? (
           <div className="flex items-center justify-center py-10">
             <div className="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />

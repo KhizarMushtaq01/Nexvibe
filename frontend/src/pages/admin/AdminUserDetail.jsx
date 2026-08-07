@@ -57,7 +57,7 @@ export default function AdminUserDetail() {
   if (!user) return null;
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-4 sm:p-6 max-w-4xl">
       <button onClick={() => navigate('/admin/users')} className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] mb-6 transition-colors">
         <FiArrowLeft className="w-4 h-4" /> Back to users
       </button>
@@ -76,7 +76,7 @@ export default function AdminUserDetail() {
 
             <div className="flex justify-center gap-1 mb-4">
               <span className={`text-xs px-2 py-1 rounded-full font-medium
-                ${user.role === 'superadmin' ? 'bg-purple-50 dark:bg-purple-950/20 text-purple-600' : user.role === 'admin' ? 'bg-red-50 dark:bg-red-950/20 text-red-600' : user.role === 'moderator' ? 'bg-orange-50 text-orange-600' : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'}`}>
+                ${user.role === 'superadmin' ? 'bg-purple-50 dark:bg-purple-950/20 text-purple-600' : user.role === 'admin' ? 'bg-red-50 dark:bg-red-950/20 text-red-600' : user.role === 'team_member' ? 'bg-blue-50 dark:bg-blue-950/20 text-blue-600' : user.role === 'moderator' ? 'bg-orange-50 text-orange-600' : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'}`}>
                 {user.role}
               </span>
               <span className={`text-xs px-2 py-1 rounded-full font-medium
@@ -105,7 +105,7 @@ export default function AdminUserDetail() {
           {/* Account info */}
           <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-2xl p-5">
             <h3 className="font-bold mb-4">Account Information</h3>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               {[
                 { label: 'User ID', value: user._id },
                 { label: 'Email', value: user.email },
@@ -138,7 +138,7 @@ export default function AdminUserDetail() {
           {/* Actions */}
           <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-2xl p-5">
             <h3 className="font-bold mb-4">Admin Actions</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button onClick={handleVerify}
                 className={`flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl text-sm font-semibold transition-colors border ${user.isVerified ? 'border-gray-300 text-gray-600 hover:bg-gray-50' : 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20'}`}>
                 <FiCheck className="w-4 h-4" /> {user.isVerified ? 'Remove verification' : 'Verify account'}
@@ -148,25 +148,25 @@ export default function AdminUserDetail() {
                 {user.isBanned ? <FiUnlock className="w-4 h-4" /> : <FiSlash className="w-4 h-4" />} {user.isBanned ? 'Unban user' : 'Ban user'}
               </button>
               {user.banReason && (
-                <div className="col-span-2 bg-red-50 dark:bg-red-950/20 rounded-xl p-3">
+                <div className="sm:col-span-2 bg-red-50 dark:bg-red-950/20 rounded-xl p-3">
                   <p className="text-xs text-red-600 font-medium">Ban reason: {user.banReason}</p>
                 </div>
               )}
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <p className="text-xs text-[var(--text-muted)] mb-2 font-medium">Change role</p>
-                <div className="flex gap-2">
-                  {(currentUser?.role === 'superadmin' ? ['user', 'moderator', 'admin', 'superadmin'] : ['user', 'moderator', 'admin']).map(role => (
+                <div className="flex flex-wrap gap-2">
+                  {(currentUser?.role === 'superadmin' ? ['user', 'moderator', 'team_member', 'admin', 'superadmin'] : ['user', 'moderator', 'team_member', 'admin']).map(role => (
                     <button key={role} onClick={() => handleRole(role)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors capitalize
+                      className={`flex-1 min-w-[100px] py-2 rounded-lg text-sm font-medium transition-colors capitalize
                         ${user.role === role ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--border)]'}`}>
-                      {role}
+                      {role.replace('_', ' ')}
                     </button>
                   ))}
                 </div>
               </div>
               {user.role !== 'admin' && user.role !== 'superadmin' && (
                 <button onClick={handleDelete}
-                  className="col-span-2 flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl text-sm font-semibold border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
+                  className="sm:col-span-2 flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl text-sm font-semibold border border-red-300 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
                   <FiTrash2 className="w-4 h-4" /> Delete account permanently
                 </button>
               )}

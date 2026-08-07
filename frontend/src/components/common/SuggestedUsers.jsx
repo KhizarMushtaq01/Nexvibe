@@ -3,25 +3,17 @@ import { Link } from 'react-router-dom';
 import { userAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import Avatar from './Avatar';
-import toast from 'react-hot-toast';
+import FollowButton from './FollowButton';
 
 export default function SuggestedUsers() {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
-  const [followed, setFollowed] = useState(new Set());
 
   useEffect(() => {
     userAPI.getSuggestions()
       .then(({ data }) => setUsers(data.users?.slice(0, 5) || []))
       .catch(() => {});
   }, []);
-
-  const handleFollow = async (id) => {
-    try {
-      await userAPI.followUser(id);
-      setFollowed(prev => new Set([...prev, id]));
-    } catch { toast.error('Failed'); }
-  };
 
   if (!user) return null;
 
@@ -66,11 +58,7 @@ export default function SuggestedUsers() {
                     {u.followers?.length ? `${u.followers.length.toLocaleString()} followers` : 'Suggested for you'}
                   </p>
                 </div>
-                <button onClick={() => handleFollow(u._id)} disabled={followed.has(u._id)}
-                  className={`text-xs font-bold flex-shrink-0 transition-colors
-                    ${followed.has(u._id) ? 'text-[var(--text-muted)]' : 'text-blue-500 hover:text-blue-600'}`}>
-                  {followed.has(u._id) ? 'Following' : 'Follow'}
-                </button>
+                <FollowButton userId={u._id} size="sm" />
               </div>
             ))}
           </div>

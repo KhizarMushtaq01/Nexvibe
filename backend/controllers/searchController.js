@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import Post from '../models/Post.js';
+import { getHiddenPrivateAuthorIds } from '../utils/privacy.js';
 
 // Role hierarchy: each role can search its own tier and every tier below it.
 // user < moderator (team/support) < admin < superadmin
@@ -32,13 +33,15 @@ export const search = async (req, res) => {
     }
 
     if (type === 'all' || type === 'posts') {
+      const hiddenAuthorIds = await getHiddenPrivateAuthorIds(req.user);
       results.posts = await Post.find({
         $or: [
           { caption: regex },
           { hashtags: q.replace('#', '').toLowerCase() }
         ],
         visibility: 'public',
-        isDeleted: false
+        isDeleted: false,
+        author: { $nin: hiddenAuthorIds }
       })
         .populate('author', 'username fullName avatar isVerified')
         .sort({ createdAt: -1 })

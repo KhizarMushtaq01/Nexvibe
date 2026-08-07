@@ -128,7 +128,7 @@ export const verifyUser = async (req, res) => {
 export const changeUserRole = async (req, res) => {
   try {
     const { role } = req.body;
-    if (!['user', 'moderator', 'admin', 'superadmin'].includes(role)) {
+    if (!['user', 'moderator', 'team_member', 'admin', 'superadmin'].includes(role)) {
       return res.status(400).json({ success: false, message: 'Invalid role' });
     }
     const target = await User.findById(req.params.id);
@@ -143,6 +143,99 @@ export const changeUserRole = async (req, res) => {
     await target.save();
     res.json({ success: true, user: target });
   } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getTeamMembers = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search, role, status } = req.query;
+    const query = { role: { $ne: 'user' } };
+
+    if (search) {
+      query.$or = [
+        { username: { $regex: search, $options: 'i' } },
+        { fullName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+    if (role && role !== 'user') query.role = role;
+    if (status === 'banned') query.isBanned = true;
+    if (status === 'active') query.isBanned = false;
+
+    const users = await User.find(query)
+      .select('-password -otp -emailVerifyToken -passwordResetToken')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const total = await User.countDocuments(query);
+
+    res.json({ success: true, users, total, pages: Math.ceil(total / limit) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const generateUniqueUsername = async (seed) => {
+  const base = (seed || 'member')
+    .toLowerCase()
+    .replace(/[^a-z0-9._]/g, '')
+    .slice(0, 24) || 'member';
+
+  let username = base;
+  let attempt = 0;
+  while (await User.findOne({ username })) {
+    attempt += 1;
+    const suffix = Math.floor(1000 + Math.random() * 9000);
+    username = `${base}${suffix}${attempt > 1 ? attempt : ''}`.slice(0, 30);
+  }
+  return username;
+};
+
+export const createTeamMember = async (req, res) => {
+  try {
+    const { fullName, email, password, department, role } = req.body;
+
+    if (!fullName || !email || !password || !role) {
+      return res.status(400).json({ success: false, message: 'Full name, email, password and role are required' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+    }
+    if (!['team_member', 'moderator', 'admin', 'superadmin'].includes(role)) {
+      return res.status(400).json({ success: false, message: 'Invalid role' });
+    }
+    if (role === 'superadmin' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Only a superadmin can grant the superadmin role.' });
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Email already in use' });
+    }
+
+    const username = await generateUniqueUsername(fullName || email.split('@')[0]);
+
+    const member = await User.create({
+      fullName: fullName.trim(),
+      username,
+      email: email.toLowerCase().trim(),
+      password,
+      department: department?.trim() || '',
+      role,
+      authProvider: 'local',
+      isEmailVerified: true
+    });
+
+    const result = member.toObject();
+    delete result.password;
+
+    res.status(201).json({ success: true, message: 'Team member created', user: result });
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ success: false, message: Object.values(error.errors)[0]?.message || 'Invalid data' });
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };

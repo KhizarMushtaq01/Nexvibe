@@ -17,7 +17,7 @@ export default function AdminDashboard() {
   }, []);
 
   if (loading) return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {Array(9).fill(0).map((_, i) => <div key={i} className="h-28 rounded-2xl shimmer" />)}
       </div>
@@ -39,7 +39,7 @@ export default function AdminDashboard() {
   const chartColor = isDark ? '#a8a8a8' : '#555';
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="text-[var(--text-secondary)] text-sm mt-1">Welcome back! Here's what's happening.</p>
