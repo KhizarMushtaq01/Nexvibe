@@ -22,8 +22,8 @@ const userSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
     unique: true,
+    sparse: true,
     lowercase: true,
     trim: true,
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Invalid email']
@@ -275,7 +275,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 
 // Generate OTP
 userSchema.methods.generateOTP = function (purpose = 'login') {
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = crypto.randomInt(100000, 1000000).toString();
   this.otp = otp;
   this.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
   this.otpPurpose = purpose;

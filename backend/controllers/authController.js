@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import twilio from 'twilio';
+import appleSignin from 'apple-signin-auth';
 import User from '../models/User.js';
 import { sendTokenResponse, generateToken } from '../utils/auth.js';
 import {
@@ -119,6 +121,14 @@ export const verifyOTP = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
+    if (user.isBanned) {
+      return res.status(403).json({ success: false, message: `Account banned: ${user.banReason || 'Policy violation'}` });
+    }
+
+    if (user.otpPurpose !== purpose) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
     if (!user.otp || user.otp !== otp) {
       return res.status(400).json({ success: false, message: 'Invalid OTP' });
     }
@@ -132,8 +142,9 @@ export const verifyOTP = async (req, res) => {
     user.otpExpiry = undefined;
     user.otpPurpose = undefined;
 
-    if (purpose === 'register' || purpose === '2fa' || purpose === 'login') {
+    if (purpose === 'register' || purpose === '2fa' || purpose === 'login' || purpose === 'phone_login') {
       user.isEmailVerified = true;
+      if (purpose === 'phone_login') user.isPhoneVerified = true;
       user.lastSeen = new Date();
       await user.save();
       sendTokenResponse(user, 200, res, 'Verified successfully');
@@ -297,23 +308,111 @@ export const changePassword = async (req, res) => {
   }
 };
 
-// @desc    OAuth callback handler (Google/Facebook/Apple/Twitter)
+const verifyGoogleToken = async (accessToken) => {
+  const infoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`);
+  if (!infoRes.ok) throw new Error('Invalid Google token');
+  const info = await infoRes.json();
+  if (info.aud !== process.env.GOOGLE_CLIENT_ID) throw new Error('Token audience mismatch');
+
+  const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const profile = profileRes.ok ? await profileRes.json() : {};
+
+  return {
+    providerId: info.sub,
+    email: info.email,
+    fullName: profile.name,
+    avatar: profile.picture,
+    emailVerified: info.email_verified === 'true'
+  };
+};
+
+const verifyFacebookToken = async (accessToken) => {
+  const appToken = `${process.env.FACEBOOK_APP_ID}|${process.env.FACEBOOK_APP_SECRET}`;
+  const debugRes = await fetch(`https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${appToken}`);
+  const debug = await debugRes.json();
+  if (!debug.data?.is_valid || debug.data.app_id !== process.env.FACEBOOK_APP_ID) {
+    throw new Error('Invalid Facebook token');
+  }
+
+  const profileRes = await fetch(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
+  if (!profileRes.ok) throw new Error('Facebook profile fetch failed');
+  const profile = await profileRes.json();
+
+  return {
+    providerId: profile.id,
+    email: profile.email,
+    fullName: profile.name,
+    avatar: profile.picture?.data?.url,
+    // Graph's /me doesn't return an explicit verified flag; it only includes
+    // `email` in the response when it's a verified, primary email.
+    emailVerified: !!profile.email
+  };
+};
+
+const verifyAppleToken = async (idToken) => {
+  const payload = await appleSignin.verifyIdToken(idToken, {
+    audience: process.env.APPLE_CLIENT_ID,
+  });
+  return {
+    providerId: payload.sub,
+    email: payload.email,
+    fullName: undefined,
+    avatar: undefined,
+    emailVerified: payload.email_verified === true || payload.email_verified === 'true'
+  };
+};
+
+const PROVIDER_VERIFIERS = {
+  google: verifyGoogleToken,
+  facebook: verifyFacebookToken,
+  apple: verifyAppleToken,
+};
+
+const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+  : null;
+
+// @desc    OAuth callback handler (Google/Facebook/Apple)
 // @route   POST /api/auth/oauth
 export const oauthLogin = async (req, res) => {
   try {
-    const { provider, providerId, email, fullName, avatar, username: suggestedUsername } = req.body;
-
-    let user = await User.findOne({ [`${provider}Id`]: providerId });
-
-    if (!user && email) {
-      user = await User.findOne({ email });
+    const { provider, token } = req.body;
+    const verify = Object.prototype.hasOwnProperty.call(PROVIDER_VERIFIERS, provider)
+      ? PROVIDER_VERIFIERS[provider]
+      : null;
+    if (!verify || !token) {
+      return res.status(400).json({ success: false, message: 'Invalid provider or token' });
     }
 
-    if (!user) {
-      // Create new user
-      let username = suggestedUsername || email?.split('@')[0] || `user${Date.now()}`;
-      username = username.toLowerCase().replace(/[^a-z0-9._]/g, '');
+    let identity;
+    try {
+      identity = await verify(token); // { providerId, email, fullName, avatar, emailVerified } -- verified fields only
+    } catch {
+      return res.status(401).json({ success: false, message: 'Could not verify identity with provider' });
+    }
 
+    const { providerId, email, avatar, emailVerified } = identity ?? {};
+    if (!providerId) {
+      return res.status(401).json({ success: false, message: 'Could not verify identity with provider' });
+    }
+    // Apple never embeds a display name in the verifiable token -- it hands
+    // one to the client directly, once, on first sign-in only. Honored here
+    // ONLY for provider === 'apple' (added in Task 4), and only as a
+    // fallback name for a brand-new account, never to override
+    // providerId/email.
+    const fullName = (provider === 'apple' && req.body.fullName) || identity.fullName;
+
+    let user = await User.findOne({ [`${provider}Id`]: providerId });
+    // Only link into an existing account by email when the provider actually
+    // confirmed the email is verified -- otherwise an unverified provider
+    // email could be used to take over an unrelated local-password account.
+    if (!user && email && emailVerified) user = await User.findOne({ email });
+
+    if (!user) {
+      let username = email?.split('@')[0] || `user${Date.now()}`;
+      username = username.toLowerCase().replace(/[^a-z0-9._]/g, '');
       const exists = await User.findOne({ username });
       if (exists) username = `${username}${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -326,14 +425,43 @@ export const oauthLogin = async (req, res) => {
         authProvider: provider,
         isEmailVerified: true
       });
-
       await sendWelcomeEmail(user);
     } else {
+      if (user.isBanned) {
+        return res.status(403).json({ success: false, message: `Account banned: ${user.banReason || 'Policy violation'}` });
+      }
+
       user[`${provider}Id`] = providerId;
       if (!user.avatar && avatar) user.avatar = avatar;
-      user.isEmailVerified = true;
+      if (emailVerified) user.isEmailVerified = true;
       user.lastSeen = new Date();
+
+      // Log login activity (same shape as the local-password login flow)
+      const loginInfo = {
+        ip: req.ip || req.connection.remoteAddress,
+        device: req.headers['user-agent']?.substring(0, 100) || 'Unknown',
+        location: 'Unknown',
+        success: true,
+        timestamp: new Date()
+      };
+      user.loginHistory.push(loginInfo);
+      if (user.loginHistory.length > 20) user.loginHistory = user.loginHistory.slice(-20);
+
+      // Send OTP if 2FA enabled, same as local-password login
+      if (user.twoFactorEnabled) {
+        const otp = user.generateOTP('2fa');
+        await user.save();
+        await sendOTPEmail(user, otp, '2fa');
+        return res.status(200).json({
+          success: true,
+          requiresTwoFactor: true,
+          userId: user._id,
+          message: 'OTP sent to your email'
+        });
+      }
+
       await user.save();
+      await sendNewLoginEmail(user, loginInfo);
     }
 
     sendTokenResponse(user, 200, res, 'OAuth login successful');
@@ -345,24 +473,35 @@ export const oauthLogin = async (req, res) => {
 // @desc    Send phone OTP
 // @route   POST /api/auth/phone-otp
 export const sendPhoneOTP = async (req, res) => {
-  // In production, integrate with Twilio or similar
   try {
     const { phone } = req.body;
-    // For now, simulate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    if (!phone) return res.status(400).json({ success: false, message: 'Phone number required' });
+    if (!twilioClient) return res.status(500).json({ success: false, message: 'SMS delivery is not configured' });
 
     let user = await User.findOne({ phone });
-    if (!user) {
-      // Store temp OTP for registration
-      return res.json({ success: true, message: 'OTP sent', isNewUser: true, otp }); // remove otp in production
+    const isNewUser = !user;
+
+    if (isNewUser) {
+      // Build the user in memory only -- it isn't persisted until the SMS
+      // send below succeeds, so a failed/attacker-triggered flood doesn't
+      // leave junk user rows behind.
+      let username = `user${Date.now()}`;
+      const exists = await User.findOne({ username });
+      if (exists) username = `${username}${Math.floor(1000 + Math.random() * 9000)}`;
+      user = new User({ fullName: 'New User', username, phone, authProvider: 'phone' });
     }
 
-    user.otp = otp;
-    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-    user.otpPurpose = 'phone_login';
+    const otp = user.generateOTP('phone_login');
+
+    await twilioClient.messages.create({
+      body: `Your NexVibe verification code is: ${otp}`,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: phone
+    });
+
     await user.save();
 
-    res.json({ success: true, message: 'OTP sent to your phone', userId: user._id });
+    res.json({ success: true, message: 'OTP sent', userId: user._id });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
