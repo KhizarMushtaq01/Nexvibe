@@ -77,7 +77,11 @@ export default function RegisterPage() {
     if (provider === 'google') {
       try {
         const accessToken = await triggerGoogleLogin();
-        await oauthLogin(provider, { token: accessToken });
+        const data = await oauthLogin(provider, { token: accessToken });
+        if (data.requiresTwoFactor) {
+          navigate('/otp', { state: { userId: data.userId, purpose: '2fa' } });
+          return;
+        }
         toast.success('Welcome to NexVibe!');
         navigate('/');
       } catch (err) {
@@ -99,7 +103,11 @@ export default function RegisterPage() {
     if (provider === 'facebook') {
       try {
         const accessToken = await triggerFacebookLogin();
-        await oauthLogin(provider, { token: accessToken });
+        const data = await oauthLogin(provider, { token: accessToken });
+        if (data.requiresTwoFactor) {
+          navigate('/otp', { state: { userId: data.userId, purpose: '2fa' } });
+          return;
+        }
         toast.success('Welcome to NexVibe!');
         navigate('/');
       } catch (err) {
@@ -110,7 +118,11 @@ export default function RegisterPage() {
     if (provider === 'apple') {
       try {
         const { idToken, fullName } = await triggerAppleLogin();
-        await oauthLogin(provider, { token: idToken, fullName });
+        const data = await oauthLogin(provider, { token: idToken, fullName });
+        if (data.requiresTwoFactor) {
+          navigate('/otp', { state: { userId: data.userId, purpose: '2fa' } });
+          return;
+        }
         toast.success('Welcome to NexVibe!');
         navigate('/');
       } catch (err) {
