@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import twilio from 'twilio';
+import appleSignin from 'apple-signin-auth';
 import User from '../models/User.js';
 import { sendTokenResponse, generateToken } from '../utils/auth.js';
 import {
@@ -327,9 +328,17 @@ const verifyFacebookToken = async (accessToken) => {
   return { providerId: profile.id, email: profile.email, fullName: profile.name, avatar: profile.picture?.data?.url };
 };
 
+const verifyAppleToken = async (idToken) => {
+  const payload = await appleSignin.verifyIdToken(idToken, {
+    audience: process.env.APPLE_CLIENT_ID,
+  });
+  return { providerId: payload.sub, email: payload.email, fullName: undefined, avatar: undefined };
+};
+
 const PROVIDER_VERIFIERS = {
   google: verifyGoogleToken,
   facebook: verifyFacebookToken,
+  apple: verifyAppleToken,
 };
 
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN

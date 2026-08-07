@@ -10,6 +10,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { usePrompt } from '../../context/DialogContext';
 import { triggerGoogleLogin } from '../../lib/googleAuth';
 import { triggerFacebookLogin } from '../../lib/facebookAuth';
+import { triggerAppleLogin } from '../../lib/appleAuth';
 import { authAPI } from '../../services/api';
 
 export default function RegisterPage() {
@@ -103,6 +104,17 @@ export default function RegisterPage() {
         navigate('/');
       } catch (err) {
         toast.error(err.response?.data?.message || err.message || 'Facebook sign-in failed');
+      }
+      return;
+    }
+    if (provider === 'apple') {
+      try {
+        const { idToken, fullName } = await triggerAppleLogin();
+        await oauthLogin(provider, { token: idToken, fullName });
+        toast.success('Welcome to NexVibe!');
+        navigate('/');
+      } catch (err) {
+        toast.error(err.response?.data?.message || err.message || 'Apple sign-in failed');
       }
       return;
     }

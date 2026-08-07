@@ -9,6 +9,7 @@ import { FcGoogle } from 'react-icons/fc';
 import { FaFacebook, FaApple, FaXTwitter } from "react-icons/fa6";
 import { triggerGoogleLogin } from '../../lib/googleAuth';
 import { triggerFacebookLogin } from '../../lib/facebookAuth';
+import { triggerAppleLogin } from '../../lib/appleAuth';
 import { authAPI } from '../../services/api';
 
 export default function LoginPage() {
@@ -84,6 +85,21 @@ export default function LoginPage() {
         navigate('/');
       } catch (err) {
         toast.error(err.response?.data?.message || err.message || 'Facebook sign-in failed');
+      }
+      return;
+    }
+    if (provider === 'apple') {
+      try {
+        const { idToken, fullName } = await triggerAppleLogin();
+        const data = await oauthLogin(provider, { token: idToken, fullName });
+        if (data.requiresTwoFactor) {
+          navigate('/otp', { state: { userId: data.userId, purpose: '2fa' } });
+          return;
+        }
+        toast.success('Welcome!');
+        navigate('/');
+      } catch (err) {
+        toast.error(err.response?.data?.message || err.message || 'Apple sign-in failed');
       }
       return;
     }
