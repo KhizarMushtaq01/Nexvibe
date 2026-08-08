@@ -36,6 +36,7 @@ import AdminPosts from './pages/admin/AdminPosts';
 import AdminUserDetail from './pages/admin/AdminUserDetail';
 import AdminReports from './pages/admin/AdminReports';
 import AdminReviews from './pages/admin/AdminReviews';
+import AdminCountries from './pages/admin/AdminCountries';
 import TermsPage from './pages/Terms';
 import PrivacyPage from './pages/Privacy';
 import CookiesPage from './pages/Cookies';
@@ -136,6 +137,7 @@ function AppRoutes() {
         <Route path="posts" element={<AdminPosts />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="reviews" element={<AdminReviews />} />
+        <Route path="countries" element={<AdminCountries />} />
       </Route>
       
       {/* Shown when the geo-restriction middleware returns 403 REGION_BLOCKED
