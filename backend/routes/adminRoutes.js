@@ -23,4 +23,6 @@ router.get('/reports', ...isAdmin, admin.getReports);
 router.post('/reports/resolve', ...isAdmin, admin.resolveReport);
 router.get('/reviews', ...isAdmin, admin.getReviews);
 router.post('/reviews/:id/moderate', ...isAdmin, admin.moderateReview);
+router.get('/geo-restriction', ...adminOnly, admin.getGeoRestriction);
+router.put('/geo-restriction', ...adminOnly, admin.updateGeoRestriction);
 export default router;

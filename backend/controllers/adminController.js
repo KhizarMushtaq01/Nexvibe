@@ -5,6 +5,8 @@ import Notification from '../models/Notification.js';
 import Story from '../models/Story.js';
 import Report from '../models/Report.js';
 import Review from '../models/Review.js';
+import GeoRestriction from '../models/GeoRestriction.js';
+import { getSettings, invalidateCache } from '../utils/geoRestriction.js';
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -497,6 +499,45 @@ export const moderateReview = async (req, res) => {
     if (error.name === 'CastError') {
       return res.status(400).json({ success: false, message: 'Invalid id' });
     }
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const VALID_GEO_MODES = ['allow_all', 'whitelist', 'blacklist'];
+
+// @desc    Get current geo-restriction settings
+// @route   GET /api/admin/geo-restriction
+export const getGeoRestriction = async (req, res) => {
+  try {
+    const { mode, countries } = await getSettings();
+    res.json({ success: true, mode, countries: [...countries] });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Update geo-restriction mode/country list
+// @route   PUT /api/admin/geo-restriction
+export const updateGeoRestriction = async (req, res) => {
+  try {
+    const { mode, countries } = req.body;
+    if (!VALID_GEO_MODES.includes(mode)) {
+      return res.status(400).json({ success: false, message: 'Invalid mode' });
+    }
+    if (!Array.isArray(countries) || countries.some((c) => typeof c !== 'string' || c.length !== 2)) {
+      return res.status(400).json({ success: false, message: 'countries must be an array of 2-letter codes' });
+    }
+
+    let doc = await GeoRestriction.findOne();
+    if (!doc) doc = new GeoRestriction();
+    doc.mode = mode;
+    doc.countries = countries.map((c) => c.toUpperCase());
+    doc.updatedBy = req.user._id;
+    await doc.save();
+    invalidateCache();
+
+    res.json({ success: true, mode: doc.mode, countries: doc.countries });
+  } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
