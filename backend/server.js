@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 import connectDB from './config/db.js';
 import { connectRedis } from './config/redis.js';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
+import { geoBlock } from './middleware/geoBlock.js';
 import { initSocket } from './config/socket.js';
 
 // Routes
@@ -34,6 +35,12 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
+
+// Trust the first proxy hop (Nginx/PaaS load balancer) so req.ip reflects
+// the real client address instead of the proxy's -- needed for accurate
+// geo-blocking and for the IP-keyed rate limiters to work correctly behind
+// any reverse proxy.
+app.set('trust proxy', 1);
 
 // Socket.io setup
 const io = new Server(server, {
@@ -82,6 +89,10 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
+
+// Site-wide geo-restriction gate -- needs cookies (checks the access-token
+// cookie as a fallback) and must run before any route is mounted.
+app.use(geoBlock);
 
 // Logging
 if (process.env.NODE_ENV === 'development') {
