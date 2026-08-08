@@ -34,6 +34,13 @@ const userSchema = new mongoose.Schema({
     sparse: true,
     trim: true
   },
+  // Holds a not-yet-verified new email/phone while its OTP confirmation is
+  // pending (see userController.requestEmailChange/requestPhoneChange).
+  // Must be declared here -- Mongoose's default strict mode silently drops
+  // any path not in the schema on .save(), so without this the "pending"
+  // value would never actually persist between the request and confirm steps.
+  pendingEmail: { type: String, lowercase: true, trim: true },
+  pendingPhone: { type: String, trim: true },
   password: {
     type: String,
     minlength: [8, 'Password must be at least 8 characters'],
@@ -182,19 +189,30 @@ const userSchema = new mongoose.Schema({
   twoFactorEnabled: { type: Boolean, default: false },
   twoFactorBackupCodes: [String],
   
-  // OTP
-  otp: String,
+  // OTP -- hash only, never store the raw code (see generateOTP/compareOTP)
+  otpHash: String,
   otpExpiry: Date,
   otpPurpose: String,
-  
+  otpAttempts: { type: Number, default: 0 },
+  otpLockUntil: Date,
+  lastOtpSentAt: Date,
+
   // Email verification
   emailVerifyToken: String,
   emailVerifyExpiry: Date,
-  
+
   // Password reset
   passwordResetToken: String,
   passwordResetExpiry: Date,
-  
+
+  // Login brute-force lockout
+  failedLoginAttempts: { type: Number, default: 0 },
+  accountLockUntil: Date,
+
+  // Bumped on password change/reset to invalidate all previously issued
+  // access/refresh tokens (they carry the version they were minted with).
+  tokenVersion: { type: Number, default: 0 },
+
   // Session & Security
   loginHistory: [{
     ip: String,
@@ -274,18 +292,75 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
-// Compare password
+// Compare password. Accounts created via phone-OTP or OAuth have no
+// password set at all -- bcrypt.compare() throws on a non-string hash, so
+// that case has to be handled explicitly rather than left to bcrypt.
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password) return false;
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Generate OTP
+// Generate OTP -- returns the raw code (for the email/SMS) and persists only
+// its SHA-256 hash, matching the hashing approach already used for the
+// email-verify and password-reset tokens below.
 userSchema.methods.generateOTP = function (purpose = 'login') {
   const otp = crypto.randomInt(100000, 1000000).toString();
-  this.otp = otp;
+  this.otpHash = crypto.createHash('sha256').update(otp).digest('hex');
   this.otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
   this.otpPurpose = purpose;
+  this.otpAttempts = 0;
+  this.otpLockUntil = undefined;
+  this.lastOtpSentAt = new Date();
   return otp;
+};
+
+// Constant-time compare of a candidate code against the stored hash.
+userSchema.methods.compareOTP = function (candidate) {
+  if (!this.otpHash || !candidate) return false;
+  const candidateHash = crypto.createHash('sha256').update(String(candidate)).digest('hex');
+  const a = Buffer.from(this.otpHash, 'hex');
+  const b = Buffer.from(candidateHash, 'hex');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+};
+
+userSchema.methods.clearOTP = function () {
+  this.otpHash = undefined;
+  this.otpExpiry = undefined;
+  this.otpPurpose = undefined;
+  this.otpAttempts = 0;
+  this.otpLockUntil = undefined;
+};
+
+userSchema.methods.isOtpLocked = function () {
+  return !!(this.otpLockUntil && this.otpLockUntil > new Date());
+};
+
+// 5 wrong codes -> 15 minute lock on further verify attempts for this OTP.
+userSchema.methods.registerFailedOtpAttempt = function () {
+  this.otpAttempts = (this.otpAttempts || 0) + 1;
+  if (this.otpAttempts >= 5) {
+    this.otpLockUntil = new Date(Date.now() + 15 * 60 * 1000);
+  }
+};
+
+userSchema.methods.isAccountLocked = function () {
+  return !!(this.accountLockUntil && this.accountLockUntil > new Date());
+};
+
+// 5 failed logins -> 15 minute lock, 10 failed logins -> 1 hour lock.
+userSchema.methods.registerFailedLogin = function () {
+  this.failedLoginAttempts = (this.failedLoginAttempts || 0) + 1;
+  if (this.failedLoginAttempts >= 10) {
+    this.accountLockUntil = new Date(Date.now() + 60 * 60 * 1000);
+  } else if (this.failedLoginAttempts >= 5) {
+    this.accountLockUntil = new Date(Date.now() + 15 * 60 * 1000);
+  }
+};
+
+userSchema.methods.resetLoginAttempts = function () {
+  this.failedLoginAttempts = 0;
+  this.accountLockUntil = undefined;
 };
 
 // Generate email verify token

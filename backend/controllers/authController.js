@@ -1,8 +1,18 @@
 import crypto from 'crypto';
-import twilio from 'twilio';
 import appleSignin from 'apple-signin-auth';
 import User from '../models/User.js';
-import { sendTokenResponse, generateToken } from '../utils/auth.js';
+import twilioClient from '../config/twilio.js';
+import {
+  sendTokenResponse,
+  generateToken,
+  findActiveRefreshToken,
+  rotateRefreshToken,
+  revokeRefreshTokenByRaw,
+  revokeAllUserSessions
+} from '../utils/auth.js';
+import { validatePasswordStrength } from '../utils/validators.js';
+import { logSecurityEvent } from '../utils/securityLog.js';
+import { deliverPhoneOTP, deliverUserOTP } from '../utils/otpDelivery.js';
 import {
   sendVerificationEmail,
   sendOTPEmail,
@@ -13,38 +23,78 @@ import {
   sendTwoFactorEnabledEmail
 } from '../utils/email.js';
 
+const REFRESH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
+  path: '/api/auth'
+};
+
+const ACCESS_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax'
+};
+
 // @desc    Register user
 // @route   POST /api/auth/register
 export const register = async (req, res) => {
   try {
     const { fullName, username, email, password, phone } = req.body;
 
-    if (!fullName || !username || !email || !password) {
+    if (!fullName || !username || !password) {
       return res.status(400).json({ success: false, message: 'Please provide all required fields' });
     }
+    // Email and username used to both be mandatory; username is now purely a
+    // display handle (see login()), so signup just needs one reachable
+    // contact method -- either works.
+    if (!email && !phone) {
+      return res.status(400).json({ success: false, message: 'Please provide an email or phone number' });
+    }
+    if (!email && phone && !twilioClient) {
+      // Fail before touching the DB at all if SMS can't be sent -- no point
+      // running the uniqueness query for an account we can't verify anyway.
+      return res.status(500).json({ success: false, message: 'SMS delivery is not configured' });
+    }
 
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    const strength = validatePasswordStrength(password);
+    if (!strength.valid) {
+      return res.status(400).json({ success: false, message: strength.message, message_ur: strength.message_ur });
+    }
+
+    const dupeConditions = [{ username }];
+    if (email) dupeConditions.push({ email });
+    if (phone) dupeConditions.push({ phone });
+    const existingUser = await User.findOne({ $or: dupeConditions });
     if (existingUser) {
-      const field = existingUser.email === email ? 'Email' : 'Username';
+      let field = 'Username';
+      if (email && existingUser.email === email) field = 'Email';
+      else if (phone && existingUser.phone === phone) field = 'Phone number';
       return res.status(400).json({ success: false, message: `${field} already in use` });
     }
 
-    const user = await User.create({ fullName, username, email, password, phone, authProvider: 'local' });
-
-    // Send welcome + verification email
-    const verifyToken = user.generateEmailVerifyToken();
-    await user.save();
-    await sendWelcomeEmail(user);
-    await sendVerificationEmail(user, verifyToken);
-
-    // Generate OTP for login confirmation
+    // Built in-memory first, not persisted yet. For a phone-only signup the
+    // SMS send below throws on failure (unlike email sending, which
+    // swallows its own errors) -- sending before save() means a failed
+    // send never leaves a junk, unverifiable account behind.
+    const user = new User({ fullName, username, email, password, phone, authProvider: 'local' });
     const otp = user.generateOTP('register');
-    await user.save();
-    await sendOTPEmail(user, otp, 'register');
+
+    if (email) {
+      await user.save();
+      const verifyToken = user.generateEmailVerifyToken();
+      await user.save();
+      await sendWelcomeEmail(user);
+      await sendVerificationEmail(user, verifyToken);
+      await sendOTPEmail(user, otp, 'register');
+    } else {
+      await deliverPhoneOTP(phone, otp);
+      await user.save();
+    }
 
     res.status(201).json({
       success: true,
-      message: 'Account created! Please verify your email.',
+      message: email ? 'Account created! Please verify your email.' : 'Account created! Please verify your phone number.',
       userId: user._id,
       requiresOTP: true
     });
@@ -57,17 +107,33 @@ export const register = async (req, res) => {
 // @route   POST /api/auth/login
 export const login = async (req, res) => {
   try {
-    const { identifier, password } = req.body; // identifier = email or username
+    const { identifier, password } = req.body; // identifier = email or phone -- username is a display handle only, not a login credential
 
     if (!identifier || !password) {
       return res.status(400).json({ success: false, message: 'Please provide credentials' });
     }
 
     const user = await User.findOne({
-      $or: [{ email: identifier.toLowerCase() }, { username: identifier.toLowerCase() }]
+      $or: [{ email: identifier.toLowerCase() }, { phone: identifier }]
     }).select('+password');
 
+    if (user?.isAccountLocked()) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((user.accountLockUntil.getTime() - Date.now()) / 1000));
+      logSecurityEvent('ACCOUNT_LOCKED', req, { userId: user._id, email: user.email });
+      return res.status(423).json({
+        success: false,
+        message: 'Account temporarily locked due to too many failed attempts. Please try again later.',
+        message_ur: 'Bohat zyada ghalat koshishon ki wajah se account aik dair ke liye lock hai.',
+        retryAfterSeconds
+      });
+    }
+
     if (!user || !(await user.comparePassword(password))) {
+      if (user) {
+        user.registerFailedLogin();
+        await user.save();
+        logSecurityEvent('LOGIN_FAILED', req, { userId: user._id, email: user.email });
+      }
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
@@ -75,38 +141,28 @@ export const login = async (req, res) => {
       return res.status(403).json({ success: false, message: `Account banned: ${user.banReason || 'Policy violation'}` });
     }
 
-    // Log login activity
-    const loginInfo = {
-      ip: req.ip || req.connection.remoteAddress,
-      device: req.headers['user-agent']?.substring(0, 100) || 'Unknown',
-      location: 'Unknown',
-      success: true,
-      timestamp: new Date()
-    };
+    user.resetLoginAttempts();
 
-    user.loginHistory.push(loginInfo);
-    if (user.loginHistory.length > 20) user.loginHistory = user.loginHistory.slice(-20);
-    user.lastSeen = new Date();
-    user.isOnline = true;
-
-    // Send OTP if 2FA enabled
-    if (user.twoFactorEnabled) {
-      const otp = user.generateOTP('2fa');
-      await user.save();
-      await sendOTPEmail(user, otp, '2fa');
-      return res.status(200).json({
-        success: true,
-        requiresTwoFactor: true,
-        userId: user._id,
-        message: 'OTP sent to your email'
-      });
-    }
-
-    // Send login notification email
+    // Password is correct, but the login is not complete yet -- an OTP is
+    // always required to finish it (previously this was skipped unless the
+    // user had 2FA enabled; now every password login goes through it).
+    // loginHistory/the "new sign-in" email are deliberately NOT recorded
+    // here: this only proves the password, not the person, so recording it
+    // as a successful login now would be wrong for anyone who then fails
+    // the OTP step. Both happen in verifyOTP() once the OTP actually passes.
+    const otpPurpose = user.twoFactorEnabled ? '2fa' : 'login';
+    const otp = user.generateOTP(otpPurpose);
     await user.save();
-    await sendNewLoginEmail(user, loginInfo);
+    const channel = await deliverUserOTP(user, otp, otpPurpose);
+    logSecurityEvent('LOGIN_SUCCESS', req, { userId: user._id, email: user.email, meta: { stage: 'password_verified', otpPurpose } });
 
-    sendTokenResponse(user, 200, res, 'Logged in successfully');
+    return res.status(200).json({
+      success: true,
+      requiresOTP: true,
+      purpose: otpPurpose,
+      userId: user._id,
+      message: channel === 'sms' ? 'OTP sent to your phone' : 'OTP sent to your email'
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -125,29 +181,74 @@ export const verifyOTP = async (req, res) => {
       return res.status(403).json({ success: false, message: `Account banned: ${user.banReason || 'Policy violation'}` });
     }
 
-    if (user.otpPurpose !== purpose) {
+    if (user.isOtpLocked()) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((user.otpLockUntil.getTime() - Date.now()) / 1000));
+      return res.status(429).json({
+        success: false,
+        message: 'Too many incorrect codes. Please try again later.',
+        message_ur: 'Bohat zyada ghalat codes. Baraye meherbani thodi dair baad koshish karein.',
+        retryAfterSeconds
+      });
+    }
+
+    // Purpose mismatch / no active OTP / expired -- all treated as a plain
+    // "invalid or expired" response so we don't leak which case it was.
+    if (!user.otpHash || user.otpPurpose !== purpose || new Date() > user.otpExpiry) {
       return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
     }
 
-    if (!user.otp || user.otp !== otp) {
+    if (!user.compareOTP(otp)) {
+      user.registerFailedOtpAttempt();
+      await user.save();
+      logSecurityEvent('OTP_FAILED', req, { userId: user._id, meta: { purpose } });
+      if (user.isOtpLocked()) {
+        return res.status(429).json({
+          success: false,
+          message: 'Too many incorrect codes. Please try again later.',
+          message_ur: 'Bohat zyada ghalat codes. Baraye meherbani thodi dair baad koshish karein.'
+        });
+      }
       return res.status(400).json({ success: false, message: 'Invalid OTP' });
     }
 
-    if (new Date() > user.otpExpiry) {
-      return res.status(400).json({ success: false, message: 'OTP has expired' });
-    }
-
     // Clear OTP
-    user.otp = undefined;
-    user.otpExpiry = undefined;
-    user.otpPurpose = undefined;
+    user.clearOTP();
+    logSecurityEvent('OTP_VERIFIED', req, { userId: user._id, meta: { purpose } });
 
     if (purpose === 'register' || purpose === '2fa' || purpose === 'login' || purpose === 'phone_login') {
-      user.isEmailVerified = true;
-      if (purpose === 'phone_login') user.isPhoneVerified = true;
+      // Mark whichever channel the code actually went through as verified --
+      // an account can now be email-only, phone-only, or both (see
+      // deliverUserOTP), so this can no longer assume email unconditionally.
+      if (purpose === 'phone_login') {
+        user.isPhoneVerified = true;
+      } else if (user.email) {
+        user.isEmailVerified = true;
+      } else if (user.phone) {
+        user.isPhoneVerified = true;
+      }
       user.lastSeen = new Date();
-      await user.save();
-      sendTokenResponse(user, 200, res, 'Verified successfully');
+      user.isOnline = true;
+
+      // This is the point a password login (with or without 2FA) actually
+      // completes -- record it and notify the user here, not back in
+      // login(), so a wrong OTP never gets logged as a successful sign-in.
+      if (purpose === 'login' || purpose === '2fa') {
+        const loginInfo = {
+          ip: req.ip || req.connection.remoteAddress,
+          device: req.headers['user-agent']?.substring(0, 100) || 'Unknown',
+          location: 'Unknown',
+          success: true,
+          timestamp: new Date()
+        };
+        user.loginHistory.push(loginInfo);
+        if (user.loginHistory.length > 20) user.loginHistory = user.loginHistory.slice(-20);
+        await user.save();
+        await sendNewLoginEmail(user, loginInfo);
+      } else {
+        await user.save();
+      }
+
+      await sendTokenResponse(user, 200, res, 'Verified successfully', req);
     } else {
       await user.save();
       res.json({ success: true, message: 'OTP verified', userId: user._id });
@@ -167,9 +268,24 @@ export const resendOTP = async (req, res) => {
 
     const otp = user.generateOTP(purpose || 'login');
     await user.save();
-    await sendOTPEmail(user, otp, purpose || 'login');
+    const channel = await deliverUserOTP(user, otp, purpose || 'login');
 
-    res.json({ success: true, message: 'OTP resent to your email' });
+    res.json({ success: true, message: channel === 'sms' ? 'OTP resent to your phone' : 'OTP resent to your email' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Check whether a username is free (live check during signup)
+// @route   GET /api/auth/check-username/:username
+export const checkUsername = async (req, res) => {
+  try {
+    const username = req.params.username?.toLowerCase().trim();
+    if (!username || username.length < 3 || !/^[a-zA-Z0-9._]+$/.test(username)) {
+      return res.status(400).json({ success: false, message: 'Invalid username' });
+    }
+    const exists = await User.findOne({ username });
+    res.json({ success: true, available: !exists });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -207,11 +323,16 @@ export const forgotPassword = async (req, res) => {
     const { email } = req.body;
     const user = await User.findOne({ email: email?.toLowerCase() });
 
+    logSecurityEvent('PASSWORD_RESET_REQUESTED', req, { email: email?.toLowerCase(), userId: user?._id });
+
     // Always return success to prevent email enumeration
     if (!user) {
       return res.json({ success: true, message: 'If that email exists, a reset link has been sent.' });
     }
 
+    // Password-reset is a signed-link flow only -- no OTP is generated or
+    // emailed here (see audit report: the 'reset' purpose text in email.js
+    // was dead code from an earlier OTP-based design and has been removed).
     const token = user.generatePasswordResetToken();
     await user.save();
     await sendPasswordResetEmail(user, token);
@@ -237,17 +358,24 @@ export const resetPassword = async (req, res) => {
     }
 
     const { password } = req.body;
-    if (!password || password.length < 8) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+    const strength = validatePasswordStrength(password);
+    if (!strength.valid) {
+      return res.status(400).json({ success: false, message: strength.message, message_ur: strength.message_ur });
     }
 
     user.password = password;
     user.passwordResetToken = undefined;
     user.passwordResetExpiry = undefined;
+    // Invalidate every session that existed before this reset -- both
+    // outstanding access tokens (via tokenVersion) and refresh tokens.
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    user.resetLoginAttempts();
     await user.save();
+    await revokeAllUserSessions(user._id);
 
+    logSecurityEvent('PASSWORD_RESET_SUCCESS', req, { userId: user._id, email: user.email });
     await sendPasswordChangedEmail(user);
-    sendTokenResponse(user, 200, res, 'Password reset successful');
+    await sendTokenResponse(user, 200, res, 'Password reset successful', req);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -271,13 +399,82 @@ export const getMe = async (req, res) => {
   }
 };
 
-// @desc    Logout
+// @desc    Logout (revokes the current session's refresh token only)
 // @route   POST /api/auth/logout
 export const logout = async (req, res) => {
   try {
     await User.findByIdAndUpdate(req.user._id, { isOnline: false, lastSeen: new Date() });
+    await revokeRefreshTokenByRaw(req.cookies?.refreshToken);
     res.cookie('token', '', { expires: new Date(0), httpOnly: true });
+    res.cookie('refreshToken', '', { ...REFRESH_COOKIE_OPTIONS, expires: new Date(0) });
     res.json({ success: true, message: 'Logged out successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Log out of every device/session (revokes all refresh tokens and
+//          bumps tokenVersion so outstanding access tokens stop working too)
+// @route   POST /api/auth/logout-all
+export const logoutAll = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    user.isOnline = false;
+    user.lastSeen = new Date();
+    await user.save();
+    await revokeAllUserSessions(user._id);
+    logSecurityEvent('SESSION_REVOKED_ALL', req, { userId: user._id });
+
+    res.cookie('token', '', { expires: new Date(0), httpOnly: true });
+    res.cookie('refreshToken', '', { ...REFRESH_COOKIE_OPTIONS, expires: new Date(0) });
+    res.json({ success: true, message: 'Logged out of all devices' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Exchange a valid refresh token for a new access token, rotating
+//          the refresh token itself (single-use, chained for reuse detection)
+// @route   POST /api/auth/refresh-token
+export const refreshToken = async (req, res) => {
+  try {
+    const raw = req.cookies?.refreshToken || req.body?.refreshToken;
+    if (!raw) {
+      return res.status(401).json({ success: false, message: 'No refresh token provided' });
+    }
+
+    const doc = await findActiveRefreshToken(raw);
+    if (!doc) {
+      return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+    }
+
+    if (!doc.isActive()) {
+      // A token that's already revoked being presented again strongly
+      // suggests it was stolen and used concurrently by two parties -- kill
+      // every session in this user's family, not just this one.
+      if (doc.revokedAt) {
+        await revokeAllUserSessions(doc.user);
+        logSecurityEvent('REFRESH_TOKEN_REUSE_DETECTED', req, { userId: doc.user });
+      }
+      res.cookie('token', '', { expires: new Date(0), httpOnly: true });
+      res.cookie('refreshToken', '', { ...REFRESH_COOKIE_OPTIONS, expires: new Date(0) });
+      return res.status(401).json({ success: false, message: 'Session expired. Please sign in again.' });
+    }
+
+    const user = await User.findById(doc.user);
+    if (!user || user.isBanned) {
+      return res.status(401).json({ success: false, message: 'Not authorized' });
+    }
+
+    const newRaw = await rotateRefreshToken(doc, user, req);
+    const accessToken = generateToken(user._id, user.tokenVersion || 0);
+    const refreshTtlMs = (parseInt(process.env.REFRESH_TOKEN_EXPIRE_DAYS, 10) || 7) * 24 * 60 * 60 * 1000;
+
+    res
+      .cookie('token', accessToken, { ...ACCESS_COOKIE_OPTIONS, expires: new Date(Date.now() + 15 * 60 * 1000) })
+      .cookie('refreshToken', newRaw, { ...REFRESH_COOKIE_OPTIONS, expires: new Date(Date.now() + refreshTtlMs) })
+      .json({ success: true, token: accessToken, refreshToken: newRaw, expiresIn: 15 * 60 });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -294,15 +491,21 @@ export const changePassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Current password is incorrect' });
     }
 
-    if (newPassword.length < 8) {
-      return res.status(400).json({ success: false, message: 'New password must be at least 8 characters' });
+    const strength = validatePasswordStrength(newPassword);
+    if (!strength.valid) {
+      return res.status(400).json({ success: false, message: strength.message, message_ur: strength.message_ur });
     }
 
     user.password = newPassword;
+    // Force every other session to re-authenticate; the request making this
+    // very change gets a fresh matching token below so it isn't logged out.
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
+    await revokeAllUserSessions(user._id);
+    logSecurityEvent('PASSWORD_CHANGED', req, { userId: user._id, email: user.email });
     await sendPasswordChangedEmail(user);
 
-    res.json({ success: true, message: 'Password changed successfully' });
+    await sendTokenResponse(user, 200, res, 'Password changed successfully', req);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -369,10 +572,6 @@ const PROVIDER_VERIFIERS = {
   facebook: verifyFacebookToken,
   apple: verifyAppleToken,
 };
-
-const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
-  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-  : null;
 
 // @desc    OAuth callback handler (Google/Facebook/Apple)
 // @route   POST /api/auth/oauth
@@ -464,7 +663,7 @@ export const oauthLogin = async (req, res) => {
       await sendNewLoginEmail(user, loginInfo);
     }
 
-    sendTokenResponse(user, 200, res, 'OAuth login successful');
+    await sendTokenResponse(user, 200, res, 'OAuth login successful', req);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -516,11 +715,11 @@ export const toggle2FA = async (req, res) => {
 
     if (enable) {
       // Verify OTP first
-      if (user.otp !== otp || new Date() > user.otpExpiry) {
+      if (!user.otpHash || user.otpPurpose !== '2fa_setup' || !user.otpExpiry || new Date() > user.otpExpiry || !user.compareOTP(otp)) {
         return res.status(400).json({ success: false, message: 'Invalid OTP' });
       }
       user.twoFactorEnabled = true;
-      user.otp = undefined;
+      user.clearOTP();
       await user.save();
       await sendTwoFactorEnabledEmail(user);
       return res.json({ success: true, message: '2FA enabled successfully' });
@@ -541,8 +740,8 @@ export const request2FAOTP = async (req, res) => {
     const user = await User.findById(req.user._id);
     const otp = user.generateOTP('2fa_setup');
     await user.save();
-    await sendOTPEmail(user, otp, '2fa');
-    res.json({ success: true, message: 'OTP sent to your email' });
+    const channel = await deliverUserOTP(user, otp, '2fa');
+    res.json({ success: true, message: channel === 'sms' ? 'OTP sent to your phone' : 'OTP sent to your email' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

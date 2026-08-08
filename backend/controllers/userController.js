@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Post from '../models/Post.js';
 import Notification from '../models/Notification.js';
 import { uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary.js';
+import twilioClient from '../config/twilio.js';
 import {
   sendProfileUpdatedEmail,
   sendEmailChangedEmail,
@@ -16,7 +17,7 @@ import fs from 'fs';
 export const getUserProfile = async (req, res) => {
   try {
     const user = await User.findOne({ username: req.params.username })
-      .select('-password -otp -otpExpiry -emailVerifyToken -passwordResetToken -loginHistory -activeSessions -twoFactorSecret -twoFactorBackupCodes -e2e')
+      .select('-password -otpHash -otpExpiry -emailVerifyToken -passwordResetToken -loginHistory -activeSessions -twoFactorSecret -twoFactorBackupCodes -e2e')
       .populate('followers', 'username fullName avatar isVerified')
       .populate('following', 'username fullName avatar isVerified');
 
@@ -582,19 +583,144 @@ export const confirmEmailChange = async (req, res) => {
     const { otp } = req.body;
     const user = await User.findById(req.user._id);
 
-    if (!user.otp || user.otp !== otp || new Date() > user.otpExpiry) {
+    if (user.isOtpLocked()) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((user.otpLockUntil.getTime() - Date.now()) / 1000));
+      return res.status(429).json({ success: false, message: 'Too many incorrect codes. Please try again later.', retryAfterSeconds });
+    }
+
+    if (!user.otpHash || user.otpPurpose !== 'change_email' || new Date() > user.otpExpiry) {
       return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    if (!user.compareOTP(otp)) {
+      user.registerFailedOtpAttempt();
+      await user.save();
+      return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    }
+
+    if (!user.pendingEmail) {
+      return res.status(400).json({ success: false, message: 'No pending email change' });
+    }
+
+    // Someone else could have claimed this address in the window between
+    // request and confirm -- re-check rather than let it surface as a raw
+    // duplicate-key error from .save().
+    const taken = await User.findOne({ email: user.pendingEmail, _id: { $ne: user._id } });
+    if (taken) {
+      user.pendingEmail = undefined;
+      user.clearOTP();
+      await user.save();
+      return res.status(400).json({ success: false, message: 'Email already in use' });
     }
 
     const oldEmail = user.email;
     user.email = user.pendingEmail;
     user.pendingEmail = undefined;
-    user.otp = undefined;
-    user.otpExpiry = undefined;
+    user.clearOTP();
     await user.save();
 
     await sendEmailChangedEmail(oldEmail, user);
     res.json({ success: true, message: 'Email updated successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Request phone number add/change - send OTP via SMS
+// @route   POST /api/users/change-phone/request
+export const requestPhoneChange = async (req, res) => {
+  try {
+    const { newPhone } = req.body;
+    if (!newPhone) return res.status(400).json({ success: false, message: 'Phone number required' });
+    if (!twilioClient) return res.status(500).json({ success: false, message: 'SMS delivery is not configured' });
+
+    const exists = await User.findOne({ phone: newPhone });
+    if (exists) return res.status(400).json({ success: false, message: 'Phone number already in use' });
+
+    const user = await User.findById(req.user._id);
+    const otp = user.generateOTP('change_phone');
+    user.pendingPhone = newPhone;
+    await user.save();
+
+    await twilioClient.messages.create({
+      body: `Your NexVibe verification code is: ${otp}`,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: newPhone
+    });
+
+    res.json({ success: true, message: 'OTP sent to new phone number' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Confirm phone number add/change
+// @route   POST /api/users/change-phone/confirm
+export const confirmPhoneChange = async (req, res) => {
+  try {
+    const { otp } = req.body;
+    const user = await User.findById(req.user._id);
+
+    if (user.isOtpLocked()) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((user.otpLockUntil.getTime() - Date.now()) / 1000));
+      return res.status(429).json({ success: false, message: 'Too many incorrect codes. Please try again later.', retryAfterSeconds });
+    }
+
+    if (!user.otpHash || user.otpPurpose !== 'change_phone' || new Date() > user.otpExpiry) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    if (!user.compareOTP(otp)) {
+      user.registerFailedOtpAttempt();
+      await user.save();
+      return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    }
+
+    if (!user.pendingPhone) {
+      return res.status(400).json({ success: false, message: 'No pending phone number change' });
+    }
+
+    const taken = await User.findOne({ phone: user.pendingPhone, _id: { $ne: user._id } });
+    if (taken) {
+      user.pendingPhone = undefined;
+      user.clearOTP();
+      await user.save();
+      return res.status(400).json({ success: false, message: 'Phone number already in use' });
+    }
+
+    user.phone = user.pendingPhone;
+    user.pendingPhone = undefined;
+    user.isPhoneVerified = true;
+    user.clearOTP();
+    await user.save();
+
+    res.json({ success: true, message: 'Phone number updated successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Remove the phone number from the account
+// @route   DELETE /api/users/phone
+export const removePhone = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user.phone) {
+      return res.status(400).json({ success: false, message: 'No phone number on file' });
+    }
+    // Phone is now a first-class login credential (see authController.login)
+    // -- removing it from an account with no email would leave the user
+    // with no way to sign in or ever reset a lost password again.
+    if (!user.email) {
+      return res.status(400).json({ success: false, message: 'Add an email first -- you need at least one way to sign in.' });
+    }
+
+    user.phone = undefined;
+    user.isPhoneVerified = false;
+    await user.save();
+
+    res.json({ success: true, message: 'Phone number removed' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { authAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+import { FiMail, FiLock } from 'react-icons/fi';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -22,22 +23,26 @@ export default function ForgotPasswordPage() {
   };
 
   if (sent) return (
-    <div className="min-h-screen bg-[var(--bg-secondary)] flex items-center justify-center p-4">
-      <div className="card p-8 w-full max-w-[380px] text-center animate-scale-in">
-        <div className="text-5xl mb-4">📧</div>
-        <h2 className="text-xl font-bold mb-2">Check your email</h2>
-        <p className="text-sm text-[var(--text-secondary)] mb-6">We sent a password reset link to <strong>{email}</strong></p>
+    <div className="min-h-screen bg-[var(--bg-secondary)] flex items-center justify-center p-3 sm:p-4">
+      <div className="card p-6 sm:p-8 w-full max-w-[380px] text-center animate-scale-in">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 rounded-full bg-pink-500/10 flex items-center justify-center">
+          <FiMail className="w-7 h-7 sm:w-8 sm:h-8 text-pink-500" />
+        </div>
+        <h2 className="text-lg sm:text-xl font-bold mb-2">Check your email</h2>
+        <p className="text-sm text-[var(--text-secondary)] mb-6 break-words">We sent a password reset link to <strong>{email}</strong></p>
         <Link to="/login" className="btn-primary inline-block px-6 py-2.5 rounded-xl">Back to login</Link>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[var(--bg-secondary)] flex items-center justify-center p-4">
-      <div className="card p-8 w-full max-w-[380px] animate-fade-in">
+    <div className="min-h-screen bg-[var(--bg-secondary)] flex items-center justify-center p-3 sm:p-4">
+      <div className="card p-6 sm:p-8 w-full max-w-[380px] animate-fade-in">
         <div className="text-center mb-6">
-          <div className="text-5xl mb-4">🔒</div>
-          <h1 className="text-2xl font-bold mb-1">Trouble logging in?</h1>
+          <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 rounded-full bg-pink-500/10 flex items-center justify-center">
+            <FiLock className="w-7 h-7 sm:w-8 sm:h-8 text-pink-500" />
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold mb-1">Trouble logging in?</h1>
           <p className="text-sm text-[var(--text-secondary)]">Enter your email and we'll send you a link to get back into your account.</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">

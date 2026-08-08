@@ -2,19 +2,31 @@
 import express from 'express';
 import * as auth from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
-import rateLimit from 'express-rate-limit';
+import {
+  loginLimiter,
+  registerLimiter,
+  verifyOtpLimiter,
+  resendOtpLimiter,
+  resendOtpCooldownLimiter,
+  forgotPasswordLimiter,
+  refreshTokenLimiter,
+  checkUsernameLimiter
+} from '../middleware/rateLimiters.js';
 
 const router = express.Router();
-const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { success: false, message: 'Too many attempts, try again later' } });
 
-router.post('/register', auth.register);
+router.get('/check-username/:username', checkUsernameLimiter, auth.checkUsername);
+router.post('/register', registerLimiter, auth.register);
 router.post('/login', loginLimiter, auth.login);
 router.post('/logout', protect, auth.logout);
+router.post('/logout-all', protect, auth.logoutAll);
+router.post('/refresh-token', refreshTokenLimiter, auth.refreshToken);
 router.get('/me', protect, auth.getMe);
-router.post('/verify-otp', loginLimiter, auth.verifyOTP);
-router.post('/resend-otp', auth.resendOTP);
+router.post('/verify-otp', verifyOtpLimiter, auth.verifyOTP);
+// Cooldown limiter (60s/request) runs before the 3-per-5-minutes limiter.
+router.post('/resend-otp', resendOtpCooldownLimiter, resendOtpLimiter, auth.resendOTP);
 router.get('/verify-email/:token', auth.verifyEmail);
-router.post('/forgot-password', auth.forgotPassword);
+router.post('/forgot-password', forgotPasswordLimiter, auth.forgotPassword);
 router.post('/reset-password/:token', auth.resetPassword);
 router.put('/change-password', protect, auth.changePassword);
 router.post('/oauth', loginLimiter, auth.oauthLogin);

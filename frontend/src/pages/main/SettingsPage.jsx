@@ -177,6 +177,7 @@ function AccountSection({ user, updateUser, navigate, logout }) {
         <p className="text-sm text-[var(--text-muted)] mb-2">{user?.email}</p>
         <button onClick={() => navigate('/settings/security')} className="text-sm font-semibold text-blue-500">Change email</button>
       </Section>
+      <PhoneSection user={user} updateUser={updateUser} />
       <Section title="Delete account">
         <p className="text-sm text-[var(--text-secondary)] mb-4">Once deleted, your account and all data will be permanently removed.</p>
         <button onClick={() => setShowDelete(v => !v)} className="w-full py-3 px-4 rounded-xl text-sm font-medium border border-red-300 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
@@ -194,6 +195,109 @@ function AccountSection({ user, updateUser, navigate, logout }) {
         )}
       </Section>
     </div>
+  );
+}
+
+function PhoneSection({ user, updateUser }) {
+  const [step, setStep] = useState('idle'); // idle | entering | otp
+  const [newPhone, setNewPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+
+  const reset = () => { setStep('idle'); setNewPhone(''); setOtp(''); };
+
+  const handleSendCode = async () => {
+    if (!newPhone.trim()) return toast.error('Enter a phone number');
+    setLoading(true);
+    try {
+      const { data } = await userAPI.requestPhoneChange(newPhone.trim());
+      toast.success(data.message || 'Code sent');
+      setStep('otp');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send code');
+    } finally { setLoading(false); }
+  };
+
+  const handleVerify = async () => {
+    if (otp.length !== 6) return toast.error('Enter the 6-digit code');
+    setLoading(true);
+    try {
+      await userAPI.confirmPhoneChange(otp);
+      updateUser({ phone: newPhone.trim(), isPhoneVerified: true });
+      toast.success('Phone number updated');
+      reset();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Invalid code');
+    } finally { setLoading(false); }
+  };
+
+  const handleRemove = async () => {
+    setLoading(true);
+    try {
+      await userAPI.removePhone();
+      updateUser({ phone: undefined, isPhoneVerified: false });
+      toast.success('Phone number removed');
+      setShowRemoveConfirm(false);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to remove phone number');
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <Section title="Phone number">
+      {step === 'idle' && (
+        user?.phone ? (
+          <>
+            <p className="text-sm text-[var(--text-muted)] mb-2">{user.phone}</p>
+            <div className="flex items-center gap-4">
+              <button onClick={() => setStep('entering')} className="text-sm font-semibold text-blue-500">Change number</button>
+              <button onClick={() => setShowRemoveConfirm(v => !v)} className="text-sm font-semibold text-red-500">Delete number</button>
+            </div>
+            {showRemoveConfirm && (
+              <div className="mt-3 space-y-2 bg-[var(--bg-tertiary)] rounded-xl p-4">
+                <p className="text-sm text-[var(--text-secondary)]">Remove this phone number from your account?</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowRemoveConfirm(false)} className="btn-outline flex-1 text-sm py-2">Cancel</button>
+                  <button onClick={handleRemove} disabled={loading} className="flex-1 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold">
+                    {loading ? 'Removing...' : 'Remove'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <button onClick={() => setStep('entering')} className="text-sm font-semibold text-blue-500">Add phone number</button>
+        )
+      )}
+
+      {step === 'entering' && (
+        <div className="space-y-2">
+          <input type="tel" placeholder="+1 234 567 8900" value={newPhone}
+            onChange={e => setNewPhone(e.target.value)} className="input-field" />
+          <div className="flex gap-2">
+            <button onClick={reset} className="btn-outline flex-1 text-sm py-2">Cancel</button>
+            <button onClick={handleSendCode} disabled={loading} className="btn-primary flex-1 text-sm py-2">
+              {loading ? 'Sending...' : 'Send code'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 'otp' && (
+        <div className="space-y-2">
+          <p className="text-sm text-[var(--text-secondary)]">Enter the 6-digit code sent to {newPhone}</p>
+          <input type="text" inputMode="numeric" maxLength={6} placeholder="000000" value={otp}
+            onChange={e => setOtp(e.target.value.replace(/\D/g, ''))} className="input-field text-center tracking-widest" />
+          <div className="flex gap-2">
+            <button onClick={reset} className="btn-outline flex-1 text-sm py-2">Cancel</button>
+            <button onClick={handleVerify} disabled={loading} className="btn-primary flex-1 text-sm py-2">
+              {loading ? 'Verifying...' : 'Verify'}
+            </button>
+          </div>
+        </div>
+      )}
+    </Section>
   );
 }
 
@@ -235,8 +339,20 @@ function SecuritySection({ user }) {
     e.preventDefault();
     if (form.newPassword !== form.confirmPwd) return toast.error("Passwords don't match");
     if (form.newPassword.length < 8) return toast.error('Min 8 characters');
+    if (!/[A-Z]/.test(form.newPassword)) return toast.error('Add an uppercase letter');
+    if (!/[a-z]/.test(form.newPassword)) return toast.error('Add a lowercase letter');
+    if (!/[0-9]/.test(form.newPassword)) return toast.error('Add a number');
+    if (!/[^A-Za-z0-9]/.test(form.newPassword)) return toast.error('Add a special character');
     setLoading(true);
-    try { await authAPI.changePassword({ currentPassword: form.currentPassword, newPassword: form.newPassword }); toast.success('Password changed'); setForm({ currentPassword: '', newPassword: '', confirmPwd: '' }); }
+    try {
+      // Backend revokes every other session on a password change and mints
+      // a fresh token for this one -- persist it so this tab isn't forced
+      // through an extra 401->refresh round trip on its next request.
+      const { data } = await authAPI.changePassword({ currentPassword: form.currentPassword, newPassword: form.newPassword });
+      if (data?.token) localStorage.setItem('token', data.token);
+      toast.success('Password changed');
+      setForm({ currentPassword: '', newPassword: '', confirmPwd: '' });
+    }
     catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
     finally { setLoading(false); }
   };

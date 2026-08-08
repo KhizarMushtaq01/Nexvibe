@@ -16,6 +16,10 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.password || form.password.length < 8) return toast.error('Password must be at least 8 characters');
+    if (!/[A-Z]/.test(form.password)) return toast.error('Add an uppercase letter');
+    if (!/[a-z]/.test(form.password)) return toast.error('Add a lowercase letter');
+    if (!/[0-9]/.test(form.password)) return toast.error('Add a number');
+    if (!/[^A-Za-z0-9]/.test(form.password)) return toast.error('Add a special character');
     if (form.password !== form.confirm) return toast.error("Passwords don't match");
     if (!token) return toast.error('Invalid reset link');
     setLoading(true);
@@ -42,7 +46,7 @@ export default function ResetPasswordPage() {
               className="input-field pr-10" />
             <button type="button" onClick={() => setShowPass(v => !v)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]">
-              {showPass ? <FiEyeInvisible className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+              {showPass ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
             </button>
           </div>
           <input type="password" placeholder="Confirm new password"

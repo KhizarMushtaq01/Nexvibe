@@ -111,13 +111,16 @@ export const sendVerificationEmail = async (user, token) => {
 };
 
 export const sendOTPEmail = async (user, otp, purpose = 'login') => {
+  // Note: password reset is a signed-link flow (sendPasswordResetEmail), not
+  // OTP-based -- there is deliberately no 'reset' purpose here anymore.
   const purposeText = {
     login: 'sign in to',
     register: 'complete registration on',
-    reset: 'reset your password on',
+    phone_login: 'sign in to',
     change_email: 'change your email on',
     change_phone: 'change your phone number on',
-    '2fa': 'verify two-factor authentication on'
+    '2fa': 'verify two-factor authentication on',
+    '2fa_setup': 'enable two-factor authentication on'
   }[purpose] || 'access';
 
   await sendEmail({

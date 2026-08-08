@@ -2,6 +2,7 @@ import express from 'express';
 import * as user from '../controllers/userController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { upload } from '../middleware/upload.js';
+import { phoneChangeLimiter } from '../middleware/rateLimiters.js';
 
 const router = express.Router();
 
@@ -20,6 +21,9 @@ router.post('/deactivate', protect, user.deactivateAccount);
 router.delete('/delete-account', protect, user.deleteAccount);
 router.post('/change-email/request', protect, user.requestEmailChange);
 router.post('/change-email/confirm', protect, user.confirmEmailChange);
+router.post('/change-phone/request', protect, phoneChangeLimiter, user.requestPhoneChange);
+router.post('/change-phone/confirm', protect, user.confirmPhoneChange);
+router.delete('/phone', protect, user.removePhone);
 router.delete('/followers/:id/remove', protect, user.removeFollower);
 
 router.get('/:username', protect, user.getUserProfile);

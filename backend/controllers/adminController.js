@@ -73,7 +73,7 @@ export const getAllUsers = async (req, res) => {
     if (status === 'verified') query.isVerified = true;
 
     const users = await User.find(query)
-      .select('-password -otp -emailVerifyToken -passwordResetToken')
+      .select('-password -otpHash -emailVerifyToken -passwordResetToken')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
@@ -164,7 +164,7 @@ export const getTeamMembers = async (req, res) => {
     if (status === 'active') query.isBanned = false;
 
     const users = await User.find(query)
-      .select('-password -otp -emailVerifyToken -passwordResetToken')
+      .select('-password -otpHash -emailVerifyToken -passwordResetToken')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
@@ -271,7 +271,7 @@ export const deletePostAdmin = async (req, res) => {
 
 export const getAdminUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password -otp');
+    const user = await User.findById(req.params.id).select('-password -otpHash');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     const postsCount = await Post.countDocuments({ author: user._id, isDeleted: false });
     res.json({ success: true, user: { ...user.toObject(), postsCount } });

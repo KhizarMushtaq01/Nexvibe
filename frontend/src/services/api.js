@@ -13,25 +13,77 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor - handle 401
+// Access tokens are now short-lived (15 min, see backend security audit).
+// On a 401, try exchanging the httpOnly refresh-token cookie for a new
+// access token exactly once before giving up and bouncing to /login.
+// Concurrent 401s are queued onto a single in-flight refresh call instead of
+// each firing their own POST /auth/refresh-token.
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+const onRefreshed = (newToken) => {
+  refreshSubscribers.forEach((cb) => cb(newToken));
+  refreshSubscribers = [];
+};
+
+const bounceToLogin = () => {
+  localStorage.removeItem('token');
+  if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {
+    window.location.href = '/login';
+  }
+};
+
+const AUTH_ENDPOINTS_WITHOUT_REFRESH = ['/auth/refresh-token', '/auth/login', '/auth/register', '/auth/verify-otp'];
+
 API.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('token');
-      if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {
-        window.location.href = '/login';
-      }
+    const { response, config } = err;
+    const isRefreshExempt = !config || AUTH_ENDPOINTS_WITHOUT_REFRESH.some((p) => config.url?.includes(p));
+
+    if (response?.status !== 401 || config._retry || isRefreshExempt) {
+      if (response?.status === 401) bounceToLogin();
+      return Promise.reject(err);
     }
-    return Promise.reject(err);
+
+    config._retry = true;
+
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        refreshSubscribers.push((newToken) => {
+          if (!newToken) return reject(err);
+          config.headers.Authorization = `Bearer ${newToken}`;
+          resolve(API(config));
+        });
+      });
+    }
+
+    isRefreshing = true;
+    return API.post('/auth/refresh-token')
+      .then(({ data }) => {
+        localStorage.setItem('token', data.token);
+        isRefreshing = false;
+        onRefreshed(data.token);
+        config.headers.Authorization = `Bearer ${data.token}`;
+        return API(config);
+      })
+      .catch((refreshErr) => {
+        isRefreshing = false;
+        onRefreshed(null);
+        bounceToLogin();
+        return Promise.reject(refreshErr);
+      });
   }
 );
 
 // AUTH
 export const authAPI = {
   register: (data) => API.post('/auth/register', data),
+  checkUsername: (username) => API.get(`/auth/check-username/${encodeURIComponent(username)}`),
   login: (data) => API.post('/auth/login', data),
   logout: () => API.post('/auth/logout'),
+  logoutAll: () => API.post('/auth/logout-all'),
+  refreshToken: () => API.post('/auth/refresh-token'),
   getMe: () => API.get('/auth/me'),
   verifyOTP: (data) => API.post('/auth/verify-otp', data),
   resendOTP: (data) => API.post('/auth/resend-otp', data),
@@ -73,6 +125,9 @@ export const userAPI = {
   getBlocked: () => API.get('/users/blocked'),
   requestEmailChange: (newEmail) => API.post('/users/change-email/request', { newEmail }),
   confirmEmailChange: (otp) => API.post('/users/change-email/confirm', { otp }),
+  requestPhoneChange: (newPhone) => API.post('/users/change-phone/request', { newPhone }),
+  confirmPhoneChange: (otp) => API.post('/users/change-phone/confirm', { otp }),
+  removePhone: () => API.delete('/users/phone'),
 };
 
 // POSTS

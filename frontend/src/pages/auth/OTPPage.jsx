@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { authAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import { FiShield } from 'react-icons/fi';
 
 export default function OTPPage() {
   const { state } = useLocation();
@@ -75,23 +76,28 @@ export default function OTPPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-secondary)] flex items-center justify-center p-4">
-      <div className="card p-8 w-full max-w-[380px] animate-slide-up">
+    <div className="min-h-screen bg-[var(--bg-secondary)] flex items-center justify-center p-3 sm:p-4">
+      <div className="card p-5 sm:p-8 w-full max-w-[380px] animate-slide-up">
         <div className="text-center mb-6">
-          <div className="text-5xl mb-4">📱</div>
-          <h1 className="text-2xl font-bold mb-2">Enter the code</h1>
-          <p className="text-sm text-[var(--text-secondary)]">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 rounded-full bg-pink-500/10 flex items-center justify-center">
+            <FiShield className="w-7 h-7 sm:w-8 sm:h-8 text-pink-500" />
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold mb-2">Enter the code</h1>
+          <p className="text-sm text-[var(--text-secondary)] break-words">
             We sent a 6-digit code to <strong>{state?.phone || state?.email || 'your email'}</strong>
           </p>
         </div>
 
-        <div className="flex gap-3 justify-center mb-6" onPaste={handlePaste}>
+        {/* CSS grid with 6 equal columns instead of fixed-width boxes -- the
+            boxes always divide up the available card width, so this never
+            overflows regardless of screen size (320px phones included). */}
+        <div className="grid grid-cols-6 gap-1.5 sm:gap-3 mb-6" onPaste={handlePaste}>
           {digits.map((d, i) => (
             <input key={i} ref={el => inputs.current[i] = el}
               type="text" inputMode="numeric" maxLength={1} value={d}
               onChange={e => handleChange(i, e.target.value)}
               onKeyDown={e => handleKeyDown(i, e)}
-              className={`w-12 h-14 text-center text-2xl font-bold rounded-xl border-2 transition-all bg-[var(--bg-tertiary)] outline-none
+              className={`w-full aspect-[3/4] min-w-0 text-center text-lg sm:text-2xl font-bold rounded-xl border-2 transition-all bg-[var(--bg-tertiary)] outline-none
                 ${d ? 'border-pink-500 text-[var(--text-primary)]' : 'border-[var(--border)]'}
                 focus:border-pink-500`}
             />

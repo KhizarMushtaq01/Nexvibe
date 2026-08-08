@@ -1,21 +1,18 @@
 import { useState } from 'react';
-import { FiEye, FiEyeOff, FiPhone, FiSun, FiMoon } from 'react-icons/fi';
+import { FiEye, FiEyeOff, FiSun, FiMoon } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { usePrompt } from '../../context/DialogContext';
 import toast from 'react-hot-toast';
 import { FcGoogle } from 'react-icons/fc';
 import { FaFacebook, FaApple, FaXTwitter } from "react-icons/fa6";
 import { triggerGoogleLogin } from '../../lib/googleAuth';
 import { triggerFacebookLogin } from '../../lib/facebookAuth';
 import { triggerAppleLogin } from '../../lib/appleAuth';
-import { authAPI } from '../../services/api';
 
 export default function LoginPage() {
   const { login, oauthLogin } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const promptDialog = usePrompt();
   const navigate = useNavigate();
   const [form, setForm] = useState({ identifier: '', password: '' });
   const [loading, setLoading] = useState(false);
@@ -27,8 +24,12 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const data = await login(form.identifier, form.password);
-      if (data.requiresTwoFactor) {
-        navigate('/otp', { state: { userId: data.userId, purpose: '2fa' } });
+      // Password login now always requires an OTP step to complete -- the
+      // backend returns which purpose it sent ('2fa' for users who opted
+      // into two-factor auth, 'login' for everyone else) so this page
+      // doesn't need to guess it.
+      if (data.requiresOTP) {
+        navigate('/otp', { state: { userId: data.userId, purpose: data.purpose } });
         return;
       }
       toast.success('Welcome back!');
@@ -43,7 +44,6 @@ export default function LoginPage() {
     { icon: <FaFacebook className="w-5 h-5 text-[#1877F2]" />, label: 'Continue with Facebook', provider: 'facebook', color: 'border-[var(--border)]' },
     { icon: <FaApple className="w-5 h-5" />, label: 'Continue with Apple', provider: 'apple', color: 'border-[var(--border)]' },
     { icon: <FaXTwitter className="w-5 h-5" />, label: 'Continue with X', provider: 'twitter', color: 'border-[var(--border)]' },
-    { icon: <FiPhone className="w-5 h-5 text-green-500" />, label: 'Continue with Phone', provider: 'phone', color: 'border-[var(--border)]' },
   ];
 
   const handleOAuth = async (provider) => {
@@ -59,17 +59,6 @@ export default function LoginPage() {
         navigate('/');
       } catch (err) {
         toast.error(err.response?.data?.message || err.message || 'Google sign-in failed');
-      }
-      return;
-    }
-    if (provider === 'phone') {
-      const phone = await promptDialog({ title: 'Enter your phone number', inputPlaceholder: '+1 234 567 8900' });
-      if (!phone) return;
-      try {
-        const { data } = await authAPI.sendPhoneOTP(phone);
-        navigate('/otp', { state: { userId: data.userId, purpose: 'phone_login', phone } });
-      } catch (err) {
-        toast.error(err.response?.data?.message || 'Failed to send code');
       }
       return;
     }
@@ -125,7 +114,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-3">
             <input
               type="text"
-              placeholder="Username, email or phone"
+              placeholder="Email or phone number"
               value={form.identifier}
               onChange={e => setForm(p => ({ ...p, identifier: e.target.value }))}
               className="input-field"

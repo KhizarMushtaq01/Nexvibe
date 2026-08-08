@@ -16,10 +16,17 @@ export const protect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password -otp -otpExpiry -passwordResetToken -emailVerifyToken');
+    const user = await User.findById(decoded.id).select('-password -otpHash -otpExpiry -passwordResetToken -emailVerifyToken');
 
     if (!user) {
       return res.status(401).json({ success: false, message: 'User not found.' });
+    }
+
+    // A password change/reset bumps tokenVersion, immediately invalidating
+    // every access token minted before that point -- even ones that haven't
+    // hit their 15-minute expiry yet.
+    if ((decoded.v || 0) !== (user.tokenVersion || 0)) {
+      return res.status(401).json({ success: false, message: 'Session expired. Please sign in again.' });
     }
 
     if (user.isBanned) {

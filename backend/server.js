@@ -10,6 +10,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import connectDB from './config/db.js';
+import { connectRedis } from './config/redis.js';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 import { initSocket } from './config/socket.js';
 
@@ -52,12 +53,26 @@ connectDB();
 
 // Security middleware
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  frameguard: { action: 'deny' }, // X-Frame-Options: DENY -- prevents clickjacking
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true } // 1 year
+  // X-Content-Type-Options: nosniff is on by default in helmet -- no override needed.
 }));
 
-// CORS
+// CORS -- explicit allowlist (comma-separated ALLOWED_ORIGINS, falling back to
+// CLIENT_URL) instead of reflecting an arbitrary Origin header.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.CLIENT_URL || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Same-origin requests / non-browser tools (curl, server-to-server) send
+    // no Origin header at all -- allow those through.
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -99,11 +114,21 @@ app.use(notFound);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`\n🚀 NexVibe Server running on port ${PORT}`);
-  console.log(`📡 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🔗 API: http://localhost:${PORT}/api`);
-  console.log(`💬 Socket.io ready\n`);
-});
+
+// Rate limiters (middleware/rateLimiters.js) prefer Redis but fall back to
+// an in-memory store if it's unreachable, so this only waits for the first
+// connection attempt to settle -- a down Redis delays startup by one
+// connect timeout, it never blocks or crashes it (see config/redis.js).
+const startServer = async () => {
+  await connectRedis();
+  server.listen(PORT, () => {
+    console.log(`\n🚀 NexVibe Server running on port ${PORT}`);
+    console.log(`📡 Environment: ${process.env.NODE_ENV}`);
+    console.log(`🔗 API: http://localhost:${PORT}/api`);
+    console.log(`💬 Socket.io ready\n`);
+  });
+};
+
+startServer();
 
 export default app;

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { FiEye, FiEyeOff, FiPhone, FiSun, FiMoon } from 'react-icons/fi';
+import { useState, useEffect, useRef } from 'react';
+import { FiEye, FiEyeOff, FiSun, FiMoon, FiCheck, FiX } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -7,33 +7,123 @@ import { FcGoogle } from 'react-icons/fc';
 import { FaFacebook, FaApple } from 'react-icons/fa6';
 import { FaXTwitter } from "react-icons/fa6";
 import { useTheme } from '../../context/ThemeContext';
-import { usePrompt } from '../../context/DialogContext';
+import { authAPI } from '../../services/api';
+
 import { triggerGoogleLogin } from '../../lib/googleAuth';
 import { triggerFacebookLogin } from '../../lib/facebookAuth';
 import { triggerAppleLogin } from '../../lib/appleAuth';
-import { authAPI } from '../../services/api';
+
+const USERNAME_PATTERN = /^[a-zA-Z0-9._]+$/;
+
+// Turns "Khizar Mushtaq" into "khizarmushtaq" -- strips accents, anything
+// that isn't a letter/digit, and caps the length so a couple of suffix
+// digits still fit under the 30-char backend limit.
+const COMBINING_DIACRITICS = new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g');
+
+const slugifyName = (name) => name
+  .normalize('NFKD').replace(COMBINING_DIACRITICS, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, '')
+  .slice(0, 15);
+
+// A few 2-digit suffixes first (matches "2 ya 3 digits"), then 3-digit ones
+// as a fallback if the base name is common enough that those collide too.
+const buildUsernameCandidates = (base) => {
+  const candidates = [];
+  for (let i = 0; i < 4; i++) candidates.push(base + String(Math.floor(10 + Math.random() * 90)));
+  for (let i = 0; i < 3; i++) candidates.push(base + String(Math.floor(100 + Math.random() * 900)));
+  return candidates;
+};
 
 export default function RegisterPage() {
   const { register, oauthLogin } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const promptDialog = usePrompt();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ fullName: '', username: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [errors, setErrors] = useState({});
+  // 'idle' | 'checking' | 'available' | 'taken'
+  const [usernameStatus, setUsernameStatus] = useState('idle');
+  const usernameCheckSeq = useRef(0);
+  // Once the user types into the username field themselves, the auto-suggest
+  // effect below backs off for good -- "agar user change krna chahe to
+  // change krne dena".
+  const [usernameManuallyEdited, setUsernameManuallyEdited] = useState(false);
+  const suggestSeq = useRef(0);
+
+  // Suggests a username from the name once both it and the email/phone
+  // field have something in them, trying a few "name" + 2-3 random digits
+  // candidates until one is actually free.
+  useEffect(() => {
+    if (usernameManuallyEdited) return;
+    const base = slugifyName(form.fullName);
+    if (base.length < 2 || !form.email.trim()) return;
+
+    const seq = ++suggestSeq.current;
+    const timer = setTimeout(async () => {
+      for (const candidate of buildUsernameCandidates(base)) {
+        if (seq !== suggestSeq.current || usernameManuallyEdited) return;
+        try {
+          const { data } = await authAPI.checkUsername(candidate);
+          if (data.available) {
+            if (seq === suggestSeq.current && !usernameManuallyEdited) {
+              setForm(p => ({ ...p, username: candidate }));
+            }
+            return;
+          }
+        } catch {
+          return; // network hiccup -- leave the field as-is, not worth retrying here
+        }
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [form.fullName, form.email, usernameManuallyEdited]);
+
+  useEffect(() => {
+    const username = form.username.trim();
+    if (username.length < 3 || !USERNAME_PATTERN.test(username)) {
+      setUsernameStatus('idle');
+      return;
+    }
+    setUsernameStatus('checking');
+    const seq = ++usernameCheckSeq.current;
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await authAPI.checkUsername(username);
+        // Ignore a stale response that resolves after a newer keystroke's
+        // check already started -- otherwise a slow early request could
+        // overwrite the status a later, faster one already set.
+        if (seq === usernameCheckSeq.current) {
+          setUsernameStatus(data.available ? 'available' : 'taken');
+        }
+      } catch {
+        if (seq === usernameCheckSeq.current) setUsernameStatus('idle');
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [form.username]);
 
   const validate = () => {
     const e = {};
     if (!form.fullName.trim()) e.fullName = 'Full name required';
     if (!form.username.trim()) e.username = 'Username required';
     else if (form.username.length < 3) e.username = 'Min 3 characters';
-    else if (!/^[a-zA-Z0-9._]+$/.test(form.username)) e.username = 'Letters, numbers, dots, underscores only';
-    if (!form.email) e.email = 'Email required';
-    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Invalid email';
+    else if (!USERNAME_PATTERN.test(form.username)) e.username = 'Letters, numbers, dots, underscores only';
+    else if (usernameStatus === 'taken') e.username = 'Username already taken';
+    if (!form.email) e.email = 'Email or phone number required';
+    else if (form.email.includes('@')) {
+      if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Invalid email';
+    } else if (!/^\+?[0-9\s-]{7,15}$/.test(form.email)) {
+      e.email = 'Invalid phone number';
+    }
     if (!form.password) e.password = 'Password required';
     else if (form.password.length < 8) e.password = 'Min 8 characters';
+    else if (!/[A-Z]/.test(form.password)) e.password = 'Add an uppercase letter';
+    else if (!/[a-z]/.test(form.password)) e.password = 'Add a lowercase letter';
+    else if (!/[0-9]/.test(form.password)) e.password = 'Add a number';
+    else if (!/[^A-Za-z0-9]/.test(form.password)) e.password = 'Add a special character';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -43,9 +133,23 @@ export default function RegisterPage() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const data = await register(form);
-      toast.success('Account created! Please verify your email.');
-      navigate('/otp', { state: { userId: data.userId, purpose: 'register', email: form.email } });
+      const isEmail = form.email.includes('@');
+      const payload = {
+        fullName: form.fullName,
+        username: form.username,
+        password: form.password,
+        ...(isEmail ? { email: form.email } : { phone: form.email }),
+      };
+      const data = await register(payload);
+      toast.success(isEmail ? 'Account created! Please verify your email.' : 'Account created! Please verify your phone number.');
+      navigate('/otp', {
+        state: {
+          userId: data.userId,
+          purpose: 'register',
+          email: isEmail ? form.email : undefined,
+          phone: isEmail ? undefined : form.email,
+        }
+      });
     } catch (err) {
       toast.error(err.response?.data?.message || 'Registration failed');
     } finally { setLoading(false); }
@@ -70,7 +174,6 @@ export default function RegisterPage() {
     { icon: <FaFacebook className="w-5 h-5 text-[#1877F2]" />, label: 'Continue with Facebook', provider: 'facebook' },
     { icon: <FaApple className="w-5 h-5" />, label: 'Continue with Apple', provider: 'apple' },
     { icon: <FaXTwitter className="w-5 h-5" />, label: 'Continue with X', provider: 'twitter' },
-    { icon: <FiPhone className="w-5 h-5 text-green-500" />, label: 'Continue with Phone', provider: 'phone' },
   ];
 
   const handleOAuth = async (provider) => {
@@ -86,17 +189,6 @@ export default function RegisterPage() {
         navigate('/');
       } catch (err) {
         toast.error(err.response?.data?.message || err.message || 'Google sign-in failed');
-      }
-      return;
-    }
-    if (provider === 'phone') {
-      const phone = await promptDialog({ title: 'Enter your phone number', inputPlaceholder: '+1 234 567 8900' });
-      if (!phone) return;
-      try {
-        const { data } = await authAPI.sendPhoneOTP(phone);
-        navigate('/otp', { state: { userId: data.userId, purpose: 'phone_login', phone } });
-      } catch (err) {
-        toast.error(err.response?.data?.message || 'Failed to send code');
       }
       return;
     }
@@ -172,16 +264,38 @@ export default function RegisterPage() {
               {errors.fullName && <p className="text-xs text-red-500 mt-1">{errors.fullName}</p>}
             </div>
             <div>
-              <input type="text" placeholder="Username" value={form.username}
-                onChange={e => setForm(p => ({ ...p, username: e.target.value.toLowerCase() }))}
-                className={`input-field ${errors.username ? 'border-red-400' : ''}`} />
-              {errors.username && <p className="text-xs text-red-500 mt-1">{errors.username}</p>}
-            </div>
-            <div>
-              <input type="email" placeholder="Email" value={form.email}
+              <input type="text" placeholder="Email or phone number" value={form.email}
                 onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
                 className={`input-field ${errors.email ? 'border-red-400' : ''}`} />
               {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+            </div>
+            <div>
+              <div className="relative">
+                <input type="text" placeholder="Username" value={form.username}
+                  onChange={e => {
+                    setUsernameManuallyEdited(true);
+                    setForm(p => ({ ...p, username: e.target.value.toLowerCase() }));
+                  }}
+                  className={`input-field pr-8 ${errors.username ? 'border-red-400' : ''}`} />
+                {usernameStatus === 'checking' && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-[var(--text-muted)] border-t-transparent rounded-full animate-spin" />
+                )}
+                {usernameStatus === 'available' && !errors.username && (
+                  <FiCheck className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                )}
+                {usernameStatus === 'taken' && (
+                  <FiX className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />
+                )}
+              </div>
+              {errors.username ? (
+                <p className="text-xs text-red-500 mt-1">{errors.username}</p>
+              ) : usernameStatus === 'available' ? (
+                <p className="text-xs text-green-500 mt-1">
+                  Username available{!usernameManuallyEdited && ' · suggested for you, feel free to change it'}
+                </p>
+              ) : usernameStatus === 'taken' ? (
+                <p className="text-xs text-red-500 mt-1">Username already taken</p>
+              ) : null}
             </div>
             <div>
               <div className="relative">
