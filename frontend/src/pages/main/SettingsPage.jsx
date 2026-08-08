@@ -50,14 +50,14 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className={`flex-1 ${mobileShowSection ? 'block' : 'hidden md:block'}`}>
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-[var(--border)] md:hidden">
+      <div className={`flex-1 min-w-0 ${mobileShowSection ? 'block' : 'hidden md:block'}`}>
+        <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b border-[var(--border)] md:hidden">
           <button onClick={() => { setMobileShowSection(false); navigate('/settings'); }}>
             <FiArrowLeft className="w-5 h-5" />
           </button>
           <h2 className="font-bold">{SECTIONS.find(s => s.key === activeSection)?.label}</h2>
         </div>
-        <div className="px-6 py-6">
+        <div className="px-4 py-4 sm:px-6 sm:py-6">
           {activeSection === 'profile' && <EditProfileSection user={user} updateUser={updateUser} />}
           {activeSection === 'account' && <AccountSection user={user} updateUser={updateUser} navigate={navigate} logout={logout} />}
           {activeSection === 'privacy' && <PrivacySection user={user} updateUser={updateUser} />}
@@ -83,10 +83,14 @@ function Section({ title, children }) {
 
 function ToggleRow({ label, desc, value, onChange }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-[var(--border)] last:border-0 gap-4">
-      <div className="flex-1">
-        <p className="text-sm font-medium">{label}</p>
-        {desc && <p className="text-xs text-[var(--text-muted)] mt-0.5 leading-relaxed">{desc}</p>}
+    <div className="flex items-center justify-between py-3 border-b border-[var(--border)] last:border-0 gap-3 sm:gap-4">
+      {/* min-w-0 lets this flex child actually shrink below its text's
+          intrinsic width -- without it, a long label on a narrow screen
+          would push the toggle switch out past the container instead of
+          wrapping the label text onto a second line. */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium break-words">{label}</p>
+        {desc && <p className="text-xs text-[var(--text-muted)] mt-0.5 leading-relaxed break-words">{desc}</p>}
       </div>
       <button onClick={() => onChange(!value)}
         className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${value ? 'bg-blue-500' : 'bg-[var(--bg-tertiary)] border border-[var(--border)]'}`}>
@@ -404,7 +408,11 @@ function NotificationsSection({ user, updateUser }) {
     <div className="max-w-[500px]">
       <h2 className="text-xl font-bold hidden md:block mb-5">Notifications</h2>
       <div className="border border-[var(--border)] rounded-2xl divide-y divide-[var(--border)] overflow-hidden">
-        {items.map(item => <ToggleRow key={item.key} label={item.label} value={settings[item.key]} onChange={v => handle(item.key, v)} />)}
+        {items.map(item => (
+          <div key={item.key} className="px-4 sm:px-5">
+            <ToggleRow label={item.label} value={settings[item.key]} onChange={v => handle(item.key, v)} />
+          </div>
+        ))}
       </div>
     </div>
   );
