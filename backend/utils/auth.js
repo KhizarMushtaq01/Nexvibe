@@ -14,8 +14,8 @@ const hashToken = (raw) => crypto.createHash('sha256').update(raw).digest('hex')
 
 // `v` (tokenVersion) lets us invalidate every access token already handed
 // out for a user in one write (see User.bumpTokenVersion + authMiddleware).
-export const generateToken = (userId, tokenVersion = 0) => {
-  return jwt.sign({ id: userId, v: tokenVersion }, process.env.JWT_SECRET, {
+export const generateToken = (userId, tokenVersion = 0, role) => {
+  return jwt.sign({ id: userId, v: tokenVersion, role }, process.env.JWT_SECRET, {
     expiresIn: ACCESS_TOKEN_EXPIRES_IN
   });
 };
@@ -87,7 +87,7 @@ const stripSensitiveFields = (user) => {
 };
 
 export const sendTokenResponse = async (user, statusCode, res, message = 'Success', req = null) => {
-  const accessToken = generateToken(user._id, user.tokenVersion || 0);
+  const accessToken = generateToken(user._id, user.tokenVersion || 0, user.role);
   const refreshToken = await issueRefreshToken(user, req);
 
   const accessCookieOptions = {

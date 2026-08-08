@@ -468,7 +468,7 @@ export const refreshToken = async (req, res) => {
     }
 
     const newRaw = await rotateRefreshToken(doc, user, req);
-    const accessToken = generateToken(user._id, user.tokenVersion || 0);
+    const accessToken = generateToken(user._id, user.tokenVersion || 0, user.role);
     const refreshTtlMs = (parseInt(process.env.REFRESH_TOKEN_EXPIRE_DAYS, 10) || 7) * 24 * 60 * 60 * 1000;
 
     res
