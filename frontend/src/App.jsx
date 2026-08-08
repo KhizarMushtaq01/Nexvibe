@@ -46,6 +46,7 @@ import Community from './pages/Community';
 import Security from './pages/Security';
 import Download from './pages/Download';
 import NotFoundPage from './pages/NotFoundPage';
+import BlockedPage from './pages/BlockedPage';
 import LoadingScreen from './components/common/LoadingScreen';
 import './styles/index.css';
 
@@ -137,6 +138,10 @@ function AppRoutes() {
         <Route path="reviews" element={<AdminReviews />} />
       </Route>
       
+      {/* Shown when the geo-restriction middleware returns 403 REGION_BLOCKED
+          (see services/api.js's response interceptor) */}
+      <Route path="/blocked" element={<BlockedPage />} />
+
       {/* 404 Not Found */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
