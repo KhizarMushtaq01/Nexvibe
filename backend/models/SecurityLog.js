@@ -16,7 +16,8 @@ export const SECURITY_EVENTS = [
   'PASSWORD_RESET_SUCCESS',
   'PASSWORD_CHANGED',
   'REFRESH_TOKEN_REUSE_DETECTED',
-  'SESSION_REVOKED_ALL'
+  'SESSION_REVOKED_ALL',
+  'REGION_BLOCKED'
 ];
 
 const securityLogSchema = new mongoose.Schema({
