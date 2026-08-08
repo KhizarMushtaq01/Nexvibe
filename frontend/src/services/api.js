@@ -39,6 +39,16 @@ API.interceptors.response.use(
   (res) => res,
   (err) => {
     const { response, config } = err;
+
+    // A blocked region makes the entire app unusable -- same reasoning as
+    // the 401 bounce-to-login below, this is a hard redirect out of the
+    // SPA's state rather than something a component could meaningfully
+    // recover from.
+    if (response?.status === 403 && response?.data?.code === 'REGION_BLOCKED') {
+      window.location.href = '/blocked';
+      return Promise.reject(err);
+    }
+
     const isRefreshExempt = !config || AUTH_ENDPOINTS_WITHOUT_REFRESH.some((p) => config.url?.includes(p));
 
     if (response?.status !== 401 || config._retry || isRefreshExempt) {
@@ -236,6 +246,8 @@ export const adminAPI = {
   resolveReport: (data) => API.post('/admin/reports/resolve', data),
   getReviews: (params) => API.get('/admin/reviews', { params }),
   moderateReview: (id, action) => API.post(`/admin/reviews/${id}/moderate`, { action }),
+  getGeoRestriction: () => API.get('/admin/geo-restriction'),
+  updateGeoRestriction: (data) => API.put('/admin/geo-restriction', data),
 };
 
 export default API;
