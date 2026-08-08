@@ -16,6 +16,7 @@ export default function AdminCountries() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -23,8 +24,16 @@ export default function AdminCountries() {
         const { data } = await adminAPI.getGeoRestriction();
         setMode(data.mode);
         setSelected(new Set(data.countries));
-      } catch {
-        toast.error('Failed to load geo-restriction settings');
+      } catch (err) {
+        // The geo-restriction API is adminOnly; a moderator who navigates
+        // here directly by URL (bypassing the hidden nav link) gets a 403,
+        // not a transient failure -- show a clear permission message
+        // instead of the generic "failed to load" toast.
+        if (err.response?.status === 403) {
+          setForbidden(true);
+        } else {
+          toast.error('Failed to load geo-restriction settings');
+        }
       } finally {
         setLoading(false);
       }
@@ -61,6 +70,14 @@ export default function AdminCountries() {
 
   if (loading) {
     return <div className="p-6 text-sm text-[var(--text-secondary)]">Loading...</div>;
+  }
+
+  if (forbidden) {
+    return (
+      <div className="p-6 text-sm text-[var(--text-secondary)]">
+        You don't have permission to manage this.
+      </div>
+    );
   }
 
   return (

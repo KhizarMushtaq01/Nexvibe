@@ -524,7 +524,7 @@ export const updateGeoRestriction = async (req, res) => {
     if (!VALID_GEO_MODES.includes(mode)) {
       return res.status(400).json({ success: false, message: 'Invalid mode' });
     }
-    if (!Array.isArray(countries) || countries.some((c) => typeof c !== 'string' || c.length !== 2)) {
+    if (!Array.isArray(countries) || countries.some((c) => typeof c !== 'string' || !/^[A-Za-z]{2}$/.test(c))) {
       return res.status(400).json({ success: false, message: 'countries must be an array of 2-letter codes' });
     }
 

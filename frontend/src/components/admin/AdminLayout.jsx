@@ -19,7 +19,10 @@ export default function AdminLayout() {
     { to: '/admin/posts', label: 'Posts', Icon: FiFileText },
     { to: '/admin/reports', label: 'Reports', Icon: FiFlag },
     { to: '/admin/reviews', label: 'Reviews', Icon: FiStar },
-    { to: '/admin/countries', label: 'Countries', Icon: FiGlobe },
+    // The geo-restriction admin API is adminOnly (admin/superadmin), but
+    // AdminRoute admits moderators too -- hide this link for roles that
+    // can't actually use the page it leads to.
+    { to: '/admin/countries', label: 'Countries', Icon: FiGlobe, roles: ['admin', 'superadmin'] },
   ];
 
   return (
@@ -55,7 +58,7 @@ export default function AdminLayout() {
           </button>
         </div>
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {navItems.map(({ to, label, Icon, end }) => (
+          {navItems.filter(({ roles }) => !roles || roles.includes(user?.role)).map(({ to, label, Icon, end }) => (
             <NavLink key={to} to={to} end={end} onClick={() => setDrawerOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors

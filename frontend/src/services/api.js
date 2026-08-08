@@ -45,7 +45,14 @@ API.interceptors.response.use(
     // SPA's state rather than something a component could meaningfully
     // recover from.
     if (response?.status === 403 && response?.data?.code === 'REGION_BLOCKED') {
-      window.location.href = '/blocked';
+      // Clear the stale token and guard against redirecting when already on
+      // /blocked -- otherwise a visitor who lands there while still holding
+      // a token gets AuthProvider's fetchMe() also hitting REGION_BLOCKED,
+      // triggering another same-URL assignment and a full-page reload loop.
+      localStorage.removeItem('token');
+      if (!window.location.pathname.includes('/blocked')) {
+        window.location.href = '/blocked';
+      }
       return Promise.reject(err);
     }
 

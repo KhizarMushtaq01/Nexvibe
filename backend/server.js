@@ -36,11 +36,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 
-// Trust the first proxy hop (Nginx/PaaS load balancer) so req.ip reflects
-// the real client address instead of the proxy's -- needed for accurate
-// geo-blocking and for the IP-keyed rate limiters to work correctly behind
-// any reverse proxy.
-app.set('trust proxy', 1);
+// Only trust X-Forwarded-For when genuinely deployed behind exactly one
+// reverse-proxy hop (set TRUST_PROXY=1 in that environment's config).
+// Trusting it unconditionally lets any direct client spoof their IP,
+// bypassing both geo-restriction and the IP-keyed rate limiters.
+app.set('trust proxy', process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : false);
 
 // Socket.io setup
 const io = new Server(server, {
