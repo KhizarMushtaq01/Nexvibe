@@ -163,6 +163,10 @@ export const sendMessage = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
+    // Replying to a pending request accepts it, matching Instagram's rule.
+    // No-op (and no extra save) if the sender isn't in pendingFor.
+    conversation.pendingFor?.pull(req.user._id);
+
     let mediaData = {};
     if (req.file) {
       const isVideo = req.file.mimetype.startsWith('video/');
