@@ -84,18 +84,36 @@ export const getConversations = async (req, res) => {
       .populate({ path: 'lastMessage', populate: { path: 'sender', select: 'username fullName' } })
       .sort({ lastMessageAt: -1 });
 
-    // Attach unread count
-    const convWithUnread = await Promise.all(conversations.map(async (conv) => {
-      const unreadCount = await Message.countDocuments({
+    const uid = req.user._id.toString();
+    const now = Date.now();
+
+    const convWithExtras = await Promise.all(conversations.map(async (conv) => {
+      const realUnreadCount = await Message.countDocuments({
         conversation: conv._id,
         sender: { $ne: req.user._id },
         readBy: { $not: { $elemMatch: { user: req.user._id } } },
         isDeleted: false
       });
-      return { ...conv.toObject(), unreadCount };
+
+      const isPending = conv.pendingFor?.some(id => id.toString() === uid);
+      const folderEntry = conv.folderBy?.find(f => f.user.toString() === uid);
+      const folder = isPending ? 'request' : (folderEntry?.folder || 'primary');
+
+      const isFlagged = !!conv.flaggedBy?.some(id => id.toString() === uid);
+
+      const muteEntry = conv.mutedBy?.find(m => m.user.toString() === uid);
+      const isMuted = !!muteEntry && (!muteEntry.until || new Date(muteEntry.until).getTime() > now);
+
+      const callMuteEntry = conv.callMutedBy?.find(m => m.user.toString() === uid);
+      const isCallMuted = !!callMuteEntry && (!callMuteEntry.until || new Date(callMuteEntry.until).getTime() > now);
+
+      const isForcedUnread = conv.forcedUnreadBy?.some(id => id.toString() === uid);
+      const unreadCount = isForcedUnread ? Math.max(realUnreadCount, 1) : realUnreadCount;
+
+      return { ...conv.toObject(), unreadCount, folder, isFlagged, isMuted, isCallMuted };
     }));
 
-    res.json({ success: true, conversations: convWithUnread });
+    res.json({ success: true, conversations: convWithExtras });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
