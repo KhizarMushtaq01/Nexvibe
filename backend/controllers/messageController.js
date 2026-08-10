@@ -112,6 +112,11 @@ export const getMessages = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
+    if (conversation.forcedUnreadBy?.some(id => id.toString() === req.user._id.toString())) {
+      conversation.forcedUnreadBy.pull(req.user._id);
+      await conversation.save();
+    }
+
     // Opening a thread is the other entry point (besides get-or-create) where
     // encryption can become possible, so run the activation check here too.
     const isEncrypted = await activateEncryptionIfReady(conversation);
