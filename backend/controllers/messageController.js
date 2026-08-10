@@ -483,6 +483,144 @@ export const archiveConversation = async (req, res) => {
   }
 };
 
+// @desc    Delete a conversation (for the requesting user only)
+// @route   DELETE /api/messages/conversations/:conversationId
+export const deleteConversation = async (req, res) => {
+  try {
+    const conversation = await Conversation.findById(req.params.conversationId);
+    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
+    if (!conversation.participants.includes(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    if (!conversation.deletedBy.includes(req.user._id)) {
+      conversation.deletedBy.push(req.user._id);
+      await conversation.save();
+    }
+
+    res.json({ success: true, message: 'Conversation deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Set a conversation's read/unread state (per-user)
+// @route   POST /api/messages/conversations/:conversationId/mark-unread
+export const markConversationUnread = async (req, res) => {
+  try {
+    const { unread } = req.body;
+    const conversation = await Conversation.findById(req.params.conversationId);
+    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
+    if (!conversation.participants.includes(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    if (unread) {
+      if (!conversation.forcedUnreadBy.includes(req.user._id)) {
+        conversation.forcedUnreadBy.push(req.user._id);
+        await conversation.save();
+      }
+    } else {
+      conversation.forcedUnreadBy.pull(req.user._id);
+      await conversation.save();
+      // A blind toggle can't distinguish "genuinely has unread messages"
+      // from "only force-flagged" -- explicitly mark real messages read too
+      // so "Mark as Read" actually clears a non-zero unread count.
+      await Message.updateMany(
+        {
+          conversation: conversation._id,
+          sender: { $ne: req.user._id },
+          'readBy.user': { $ne: req.user._id }
+        },
+        { $addToSet: { readBy: { user: req.user._id, readAt: new Date() } } }
+      );
+    }
+
+    res.json({ success: true, isUnread: !!unread });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Toggle flag on a conversation
+// @route   POST /api/messages/conversations/:conversationId/flag
+export const flagConversation = async (req, res) => {
+  try {
+    const conversation = await Conversation.findById(req.params.conversationId);
+    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
+    if (!conversation.participants.includes(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    const isFlagged = conversation.flaggedBy.includes(req.user._id);
+    isFlagged
+      ? conversation.flaggedBy.pull(req.user._id)
+      : conversation.flaggedBy.push(req.user._id);
+
+    await conversation.save();
+    res.json({ success: true, isFlagged: !isFlagged });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Mute/unmute call notifications for a conversation
+// @route   POST /api/messages/conversations/:conversationId/mute-calls
+export const muteCallNotifications = async (req, res) => {
+  try {
+    const { duration } = req.body; // hours
+    const conversation = await Conversation.findById(req.params.conversationId);
+    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
+    if (!conversation.participants.includes(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    const existing = conversation.callMutedBy.find(m => m.user.toString() === req.user._id.toString());
+    if (existing) {
+      conversation.callMutedBy = conversation.callMutedBy.filter(m => m.user.toString() !== req.user._id.toString());
+    } else {
+      conversation.callMutedBy.push({
+        user: req.user._id,
+        until: duration ? new Date(Date.now() + duration * 60 * 60 * 1000) : null
+      });
+    }
+
+    await conversation.save();
+    res.json({ success: true, isCallMuted: !existing });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Move a conversation between the Primary and General folders
+// @route   POST /api/messages/conversations/:conversationId/folder
+export const setConversationFolder = async (req, res) => {
+  try {
+    const { folder } = req.body;
+    if (!['primary', 'general'].includes(folder)) {
+      return res.status(400).json({ success: false, message: "folder must be 'primary' or 'general'" });
+    }
+
+    const conversation = await Conversation.findById(req.params.conversationId);
+    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
+    if (!conversation.participants.includes(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    const existing = conversation.folderBy.find(f => f.user.toString() === req.user._id.toString());
+    if (existing) {
+      existing.folder = folder;
+    } else {
+      conversation.folderBy.push({ user: req.user._id, folder });
+    }
+
+    await conversation.save();
+    res.json({ success: true, folder });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Get unread message count
 // @route   GET /api/messages/unread-count
 export const getUnreadCount = async (req, res) => {

@@ -15,6 +15,11 @@ msgRouter.get('/conversations/:conversationId/messages', protect, msg.getMessage
 msgRouter.post('/conversations/:conversationId/messages', protect, upload.single('media'), msg.sendMessage);
 msgRouter.post('/conversations/:conversationId/mute', protect, msg.muteConversation);
 msgRouter.post('/conversations/:conversationId/archive', protect, msg.archiveConversation);
+msgRouter.delete('/conversations/:conversationId', protect, msg.deleteConversation);
+msgRouter.post('/conversations/:conversationId/mark-unread', protect, msg.markConversationUnread);
+msgRouter.post('/conversations/:conversationId/flag', protect, msg.flagConversation);
+msgRouter.post('/conversations/:conversationId/mute-calls', protect, msg.muteCallNotifications);
+msgRouter.post('/conversations/:conversationId/folder', protect, msg.setConversationFolder);
 msgRouter.delete('/:messageId', protect, msg.deleteMessage);
 msgRouter.post('/:messageId/react', protect, msg.reactToMessage);
 export { msgRouter as default };
