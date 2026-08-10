@@ -48,9 +48,17 @@ export const getOrCreateConversation = async (req, res) => {
       .populate('lastMessage');
 
     if (!conversation) {
+      const recipient = await User.findById(participantId).select('following');
+      if (!recipient) return res.status(404).json({ success: false, message: 'User not found' });
+
+      // A message from someone the recipient doesn't follow is a request,
+      // matching Instagram's actual rule.
+      const recipientFollowsSender = recipient.following.some(id => id.toString() === req.user._id.toString());
+
       conversation = await Conversation.create({
         participants: [req.user._id, participantId],
-        type: 'direct'
+        type: 'direct',
+        pendingFor: recipientFollowsSender ? [] : [participantId]
       });
       conversation = await Conversation.findById(conversation._id)
         .populate('participants', 'username fullName avatar isVerified isOnline lastSeen e2e.identityKey');
