@@ -93,16 +93,20 @@ the per-user array, save, return the updated conversation.
 
 ### `getOrCreate` (conversation creation) — request detection
 
-`User.settings.privacy.messageRequests` (`'everyone' | 'followers' |
-'noOne'`) already exists on the schema but `getOrCreateConversation` never
-reads it — a half-wired preference, same situation as `deletedBy` was. This
-change finally applies it: when a **new direct conversation** is created,
-if the recipient's `messageRequests` is `'followers'` and the initiator is
-not in the recipient's `followers` array, push the recipient into
-`pendingFor` (a request). `'noOne'` rejects conversation creation outright
-(403) rather than creating a pending request. `'everyone'` (default) never
-creates a request. No new relationship model needed — `User.followers` /
-`User.following` already exist.
+`User.settings.privacy.messageRequests` exists on the schema but is
+completely unused — no controller reads it and no frontend screen sets it
+(confirmed via search). Its intended semantics aren't documented anywhere,
+so guessing at them and building request-detection on top would risk
+getting it wrong. This change leaves that field alone (out of scope — a
+separate, pre-existing half-wired setting, not this feature's job) and
+instead uses the one relationship the app already has working end-to-end:
+`User.following`/`User.followers` (populated by the real follow system).
+
+When a **new direct conversation** is created, if the recipient does not
+follow the initiator (`!recipient.following.includes(initiatorId)`), push
+the recipient into `pendingFor` — matching Instagram's actual rule ("a
+message from someone you don't follow is a request"). No new relationship
+model needed.
 
 ### `sendMessage` — auto-accept on reply
 
@@ -126,19 +130,35 @@ For the requesting user, compute and include per-conversation:
 
 ## Frontend
 
-### New: `frontend/src/hooks/useLongPress.js`
+### New: `frontend/src/lib/longPress.js`
 
-Reusable hook: `const handlers = useLongPress(onLongPress, { delay: 500 })`.
-Attaches `onTouchStart/onTouchEnd/onTouchMove` and
-`onMouseDown/onMouseUp/onMouseLeave`. Cancels the pending timer on
-`touchmove`/`mouseleave` beyond a small threshold so list-scrolling never
-misfires a long-press. Returns a spread-able handlers object, no other
-component needs to know about timers.
+The codebase's only existing frontend tests are pure, dependency-free
+`lib/` modules with a co-located `.test.js` (`e2eCrypto.js`,
+`deviceDetect.js`, `permissionLabel.js`) — there's no
+`@testing-library/react` (or any hook/component test setup) anywhere, so a
+stateful `useLongPress` *hook* (needing `useRef` internally) wouldn't be
+testable without adding that new dependency. Instead this is a plain
+factory function, matching the existing pattern exactly and staying
+trivially unit-testable with no new dependencies:
+
+```js
+export function createLongPressHandlers(onLongPress, { delay = 500, moveThreshold = 10 } = {}) { ... }
+```
+
+Returns a plain object (`{ onTouchStart, onTouchMove, onTouchEnd,
+onMouseDown, onMouseMove, onMouseUp, onMouseLeave }`) closing over a timer
+id and start coordinates in local variables — no React APIs used. Each
+`ChatListItem` creates its handlers once via
+`useRef(createLongPressHandlers(...)).current` (stable for the row's
+lifetime, since the row is keyed by `conv._id` and doesn't need the
+callback identity to change). Move beyond `moveThreshold` px or
+touchend/mouseup/mouseleave before `delay` cancels the pending timer, so
+list-scrolling never misfires a long-press.
 
 ### New: `frontend/src/components/message/`
 
 - **`ChatListItem.jsx`** — extracted from the current inline `.map()` in
-  `MessagesPage.jsx`. Adds: `useLongPress` wiring, a checkbox circle
+  `MessagesPage.jsx`. Adds: `createLongPressHandlers` wiring, a checkbox circle
   (rendered only when `selectionMode` is true, `absolute` positioned over
   the avatar like Instagram, animated fade/scale-in), and a flag icon
   badge next to the timestamp when `isFlagged`. `onClick` behavior branches
@@ -210,8 +230,8 @@ behave (never a raw `window.confirm`).
   four new endpoints get manual verification the same way (`curl`/browser,
   via the `run` skill), consistent with the rest of the backend.
 - Frontend: `vitest` **is** configured and used for pure `lib/` utilities
-  (e.g. `e2eCrypto.test.js`). `useLongPress` is a pure hook, so it gets a
-  real `useLongPress.test.js` (fires after delay, cancels on move/leave)
+  (e.g. `e2eCrypto.test.js`). `longPress.js` is a pure function module, so
+  it gets a real `longPress.test.js` (fires after delay, cancels on move/leave)
   matching that existing convention. The rest of the new UI (components
   under `components/message/`, `MessagesPage.jsx` changes) has no existing
   component-test precedent in this codebase to follow, so it's verified
