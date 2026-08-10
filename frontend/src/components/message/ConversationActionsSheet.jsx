@@ -80,5 +80,5 @@ export default function ConversationActionsSheet({ conversation, title, onClose,
     { label: 'Cancel', onClick: onClose },
   ];
 
-  return <ActionSheet title={title} actions={actions} onClose={onClose} />;
+  return <ActionSheet title={title} actions={actions} onClose={onClose} blocking={false} />;
 }

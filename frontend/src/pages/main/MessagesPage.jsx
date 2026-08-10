@@ -30,8 +30,8 @@ export default function MessagesPage() {
   const navigate = useNavigate();
   const confirmDialog = useConfirm();
   const [conversations, setConversations] = useState([]);
-  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const selectionMode = selectedIds.size > 0;
   const [activeTab, setActiveTab] = useState('primary');
   const [activeConv, setActiveConv] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -253,18 +253,17 @@ export default function MessagesPage() {
     return other?.username || other?.fullName || 'Conversation';
   };
 
-  const enterSelection = (id) => { setSelectionMode(true); setSelectedIds(new Set([id])); };
+  const enterSelection = (id) => setSelectedIds(new Set([id]));
 
   const toggleSelect = (id) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
-      if (next.size === 0) setSelectionMode(false);
       return next;
     });
   };
 
-  const exitSelection = () => { setSelectionMode(false); setSelectedIds(new Set()); };
+  const exitSelection = () => setSelectedIds(new Set());
 
   const updateConv = (id, patch) =>
     setConversations(prev => prev.map(c => (c._id === id ? { ...c, ...patch } : c)));
@@ -318,7 +317,7 @@ export default function MessagesPage() {
     const ids = [...selectedIds];
     try {
       await Promise.all(ids.map(id => messageAPI.markConversationUnread(id, true)));
-      setConversations(prev => prev.map(c => (ids.includes(c._id) ? { ...c, unreadCount: Math.max(c.unreadCount, 1) } : c)));
+      setConversations(prev => prev.map(c => (ids.includes(c._id) ? { ...c, unreadCount: Math.max(c.unreadCount || 0, 1) } : c)));
       toast.success('Marked as unread');
       exitSelection();
     } catch { toast.error('Failed to update'); }
@@ -327,7 +326,11 @@ export default function MessagesPage() {
   const bulkMuteMessages = async () => {
     const ids = [...selectedIds];
     try {
-      await Promise.all(ids.map(id => messageAPI.muteConversation(id)));
+      const results = await Promise.all(ids.map(id => messageAPI.muteConversation(id)));
+      setConversations(prev => prev.map(c => {
+        const idx = ids.indexOf(c._id);
+        return idx === -1 ? c : { ...c, isMuted: results[idx].data.isMuted };
+      }));
       toast.success('Updated mute settings');
       exitSelection();
     } catch { toast.error('Failed to update'); }
@@ -336,7 +339,11 @@ export default function MessagesPage() {
   const bulkMuteCalls = async () => {
     const ids = [...selectedIds];
     try {
-      await Promise.all(ids.map(id => messageAPI.muteCallNotifications(id)));
+      const results = await Promise.all(ids.map(id => messageAPI.muteCallNotifications(id)));
+      setConversations(prev => prev.map(c => {
+        const idx = ids.indexOf(c._id);
+        return idx === -1 ? c : { ...c, isCallMuted: results[idx].data.isCallMuted };
+      }));
       toast.success('Updated call notification settings');
       exitSelection();
     } catch { toast.error('Failed to update'); }
@@ -360,7 +367,7 @@ export default function MessagesPage() {
     <div className="flex h-[calc(100vh-0px)] overflow-hidden bg-[var(--bg-primary)]">
       {/* ── Conversation List ── */}
       {showList && (
-        <div className={`flex flex-col border-r border-[var(--border)] bg-[var(--bg-primary)] flex-shrink-0
+        <div className={`relative flex flex-col border-r border-[var(--border)] bg-[var(--bg-primary)] flex-shrink-0
           ${showChat && !isMobile ? 'w-[350px]' : 'w-full md:w-[350px]'}`}>
 
           {/* Header */}
@@ -441,6 +448,16 @@ export default function MessagesPage() {
               onMarkUnread={bulkMarkUnread}
               onMuteMessages={bulkMuteMessages}
               onMuteCalls={bulkMuteCalls}
+            />
+          )}
+
+          {selectedConv && (
+            <ConversationActionsSheet
+              conversation={selectedConv}
+              title={conversationDisplayName(selectedConv)}
+              onClose={exitSelection}
+              onUpdate={updateConv}
+              onDelete={(id) => { removeConv(id); exitSelection(); }}
             />
           )}
         </div>
@@ -728,17 +745,6 @@ export default function MessagesPage() {
           label="Report this message"
           evidenceContent={reportingMessage.content}
           onClose={() => setReportingMessage(null)}
-        />
-      )}
-
-      {/* Single-conversation quick-action sheet */}
-      {selectedConv && (
-        <ConversationActionsSheet
-          conversation={selectedConv}
-          title={conversationDisplayName(selectedConv)}
-          onClose={exitSelection}
-          onUpdate={updateConv}
-          onDelete={(id) => { removeConv(id); exitSelection(); }}
         />
       )}
     </div>

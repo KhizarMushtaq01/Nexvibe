@@ -69,4 +69,30 @@ describe('createLongPressHandlers', () => {
 
     expect(onLongPress).not.toHaveBeenCalled();
   });
+
+  it('calls preventDefault on touchend when the long-press already fired', () => {
+    const onLongPress = vi.fn();
+    const handlers = createLongPressHandlers(onLongPress, { delay: 500 });
+
+    handlers.onTouchStart({ touches: [{ clientX: 0, clientY: 0 }] });
+    vi.advanceTimersByTime(500);
+    expect(onLongPress).toHaveBeenCalledTimes(1);
+
+    const preventDefault = vi.fn();
+    handlers.onTouchEnd({ preventDefault });
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call preventDefault on touchend when the long-press had not fired', () => {
+    const onLongPress = vi.fn();
+    const handlers = createLongPressHandlers(onLongPress, { delay: 500 });
+
+    handlers.onTouchStart({ touches: [{ clientX: 0, clientY: 0 }] });
+    vi.advanceTimersByTime(300);
+
+    const preventDefault = vi.fn();
+    handlers.onTouchEnd({ preventDefault });
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(onLongPress).not.toHaveBeenCalled();
+  });
 });

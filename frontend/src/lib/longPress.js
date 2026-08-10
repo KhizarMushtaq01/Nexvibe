@@ -2,6 +2,7 @@ export function createLongPressHandlers(onLongPress, { delay = 500, moveThreshol
   let timer = null;
   let startX = 0;
   let startY = 0;
+  let fired = false;
 
   const clear = () => {
     if (timer) {
@@ -12,10 +13,12 @@ export function createLongPressHandlers(onLongPress, { delay = 500, moveThreshol
 
   const start = (x, y) => {
     clear();
+    fired = false;
     startX = x;
     startY = y;
     timer = setTimeout(() => {
       timer = null;
+      fired = true;
       onLongPress();
     }, delay);
   };
@@ -36,7 +39,13 @@ export function createLongPressHandlers(onLongPress, { delay = 500, moveThreshol
       const touch = e.touches[0];
       moved(touch.clientX, touch.clientY);
     },
-    onTouchEnd: clear,
+    onTouchEnd: (e) => {
+      clear();
+      if (fired) {
+        e.preventDefault();
+        fired = false;
+      }
+    },
     onMouseDown: (e) => start(e.clientX, e.clientY),
     onMouseMove: (e) => moved(e.clientX, e.clientY),
     onMouseUp: clear,

@@ -613,6 +613,9 @@ export const setConversationFolder = async (req, res) => {
     } else {
       conversation.folderBy.push({ user: req.user._id, folder });
     }
+    // Explicitly filing a request into Primary/General is itself an accept
+    // action, same principle as replying accepting it (see sendMessage).
+    conversation.pendingFor.pull(req.user._id);
 
     await conversation.save();
     res.json({ success: true, folder });
