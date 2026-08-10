@@ -8,6 +8,7 @@ import Avatar from '../common/Avatar';
 import NotificationsDropdown from '../common/NotificationsDropdown';
 import FollowRequestsDropdown from '../common/FollowRequestsDropdown';
 import CreatePostModal from '../post/CreatePostModal';
+import Logo from '../common/Logo';
 
 import { FiHome, FiSearch, FiCompass, FiPlay, FiMessageCircle, FiBell, FiUserPlus, FiPlusSquare, FiBookmark, FiSettings, FiMenu, FiSun, FiMoon, FiLogOut } from 'react-icons/fi';
 import { BsGrid3X3Gap, BsPersonBoundingBox } from 'react-icons/bs';
@@ -116,7 +117,7 @@ export default function MainLayout() {
           {!collapsed ? (
             <span className="text-xl font-black text-gradient cursor-pointer select-none" onClick={() => navigate('/feed')}>NexVibe</span>
           ) : (
-            <span className="text-2xl cursor-pointer select-none" onClick={() => navigate('/feed')}>✦</span>
+            <Logo size={32} className="cursor-pointer" onClick={() => navigate('/feed')} />
           )}
         </div>
 

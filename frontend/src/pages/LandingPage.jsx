@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import PublicHeader from '../components/common/PublicHeader';
+import Logo from '../components/common/Logo';
 
 // ── icons from react-icons/fi (all confirmed available) ──
 import {
@@ -623,7 +624,10 @@ export default function LandingPage() {
 
             <div className="relative">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl mb-6 mx-auto">
-                <BsInstagram className="w-8 h-8 text-white" />
+                <svg viewBox="0 0 100 100" className="w-8 h-8" fill="none" aria-hidden="true">
+                  <path d="M50 20C53 40 60 47 80 50C60 53 53 60 50 80C47 60 40 53 20 50C40 47 47 40 50 20Z" fill="white" />
+                  <path d="M74 17C75.5 22 78 24.5 83 26C78 27.5 75.5 30 74 35C72.5 30 70 27.5 65 26C70 24.5 72.5 22 74 17Z" fill="white" />
+                </svg>
               </div>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white mb-4">
                 Ready to join the community?
@@ -653,9 +657,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
             <Link to="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 ig-gradient rounded-xl flex items-center justify-center">
-                <BsInstagram className="w-4 h-4 text-white" />
-              </div>
+              <Logo size={32} />
               <span className="text-xl font-black text-gradient">NexVibe</span>
             </Link>
 

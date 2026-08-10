@@ -1,28 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
   <defs>
-    <linearGradient id="igGradient" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#f09433"/>
-      <stop offset="25%" style="stop-color:#e6683c"/>
-      <stop offset="50%" style="stop-color:#dc2743"/>
-      <stop offset="75%" style="stop-color:#cc2366"/>
-      <stop offset="100%" style="stop-color:#bc1888"/>
+    <linearGradient id="nexvibeGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#833ab4"/>
+      <stop offset="50%" style="stop-color:#fd1d1d"/>
+      <stop offset="100%" style="stop-color:#fcb045"/>
     </linearGradient>
-    <clipPath id="roundedRect">
-      <rect x="0" y="0" width="100" height="100" rx="28" ry="28"/>
-    </clipPath>
   </defs>
 
   <!-- Background with gradient -->
-  <rect x="0" y="0" width="100" height="100" rx="28" ry="28" fill="url(#igGradient)"/>
+  <rect x="0" y="0" width="100" height="100" rx="28" ry="28" fill="url(#nexvibeGradient)"/>
 
-  <!-- Camera body outline -->
-  <rect x="27" y="27" width="46" height="46" rx="13" ry="13"
-        fill="none" stroke="white" stroke-width="4"/>
-
-  <!-- Lens circle -->
-  <circle cx="50" cy="50" r="12"
-          fill="none" stroke="white" stroke-width="4"/>
-
-  <!-- Top-right dot -->
-  <circle cx="67" cy="33" r="3" fill="white"/>
+  <!-- NexVibe twin-sparkle mark: an original spark/pulse burst glyph -->
+  <path d="M50 20C53 40 60 47 80 50C60 53 53 60 50 80C47 60 40 53 20 50C40 47 47 40 50 20Z" fill="white"/>
+  <path d="M74 17C75.5 22 78 24.5 83 26C78 27.5 75.5 30 74 35C72.5 30 70 27.5 65 26C70 24.5 72.5 22 74 17Z" fill="white"/>
 </svg>

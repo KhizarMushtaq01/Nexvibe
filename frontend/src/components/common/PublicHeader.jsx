@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { FiSun, FiMoon, FiMenu, FiX } from 'react-icons/fi';
-import { BsInstagram } from 'react-icons/bs';
+import Logo from './Logo';
 
 const NAV_LINKS = [
   { label: 'Features', path: '/#features' },
@@ -23,9 +23,7 @@ export default function PublicHeader() {
     <header className="sticky top-0 z-50 bg-[var(--bg-primary)]/90 backdrop-blur-xl border-b border-[var(--border)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 ig-gradient rounded-xl flex items-center justify-center">
-            <BsInstagram className="w-4 h-4 text-white" />
-          </div>
+          <Logo size={32} />
           <span className="text-xl font-black text-gradient">NexVibe</span>
         </Link>
 
