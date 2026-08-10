@@ -199,6 +199,11 @@ export const messageAPI = {
   leaveGroup: (groupId) => API.post(`/messages/groups/${groupId}/leave`),
   muteConversation: (id, duration) => API.post(`/messages/conversations/${id}/mute`, { duration }),
   archiveConversation: (id) => API.post(`/messages/conversations/${id}/archive`),
+  deleteConversation: (id) => API.delete(`/messages/conversations/${id}`),
+  markConversationUnread: (id, unread) => API.post(`/messages/conversations/${id}/mark-unread`, { unread }),
+  flagConversation: (id) => API.post(`/messages/conversations/${id}/flag`),
+  muteCallNotifications: (id, duration) => API.post(`/messages/conversations/${id}/mute-calls`, { duration }),
+  setConversationFolder: (id, folder) => API.post(`/messages/conversations/${id}/folder`, { folder }),
   getUnreadCount: () => API.get('/messages/unread-count'),
 };
 
