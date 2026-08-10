@@ -80,13 +80,21 @@ filter in `getConversations` — only the write path is missing.
 
 ```
 DELETE /messages/conversations/:id              deletedBy: add req.user._id if absent
-POST   /messages/conversations/:id/mark-unread   forcedUnreadBy: toggle
+POST   /messages/conversations/:id/mark-unread  body {unread} -> see below
 POST   /messages/conversations/:id/flag          flaggedBy: toggle
 POST   /messages/conversations/:id/mute-calls    callMutedBy: upsert {user, until}, mirrors existing /mute
 POST   /messages/conversations/:id/folder        body {folder: 'primary'|'general'} -> folderBy: upsert
 ```
 
-All four follow the exact pattern already used by
+`mark-unread` takes an explicit `{ unread: boolean }` rather than blindly
+toggling: `unread: true` adds the user to `forcedUnreadBy`; `unread: false`
+removes them **and** runs the same `Message.updateMany(...
+$addToSet: { readBy })` used by `getMessages` to mark real messages read.
+A blind toggle can't tell "genuinely has unread messages" apart from
+"force-flagged unread" — without this, a "Mark as Read" action on a
+conversation with real unread messages would only clear the force-flag
+and leave the actual unread count untouched. `delete`/`flag`/`mute-calls`/
+`folder` follow the exact pattern already used by
 `muteConversation`/`archiveConversation` in `messageController.js`: find the
 conversation, verify `req.user._id` is a participant (403 otherwise), mutate
 the per-user array, save, return the updated conversation.
@@ -125,8 +133,11 @@ For the requesting user, compute and include per-conversation:
   time `getMessages` is called for that conversation by that user — same
   place the existing read-receipt logic already lives).
 - `isCallMuted`: requester present in `callMutedBy` with `until` in the
-  future (or no `until`, meaning indefinite) — same shape as the existing
-  `mutedBy` check already used for `isMuted`.
+  future (or no `until`, meaning indefinite).
+- `isMuted`: same check against the existing `mutedBy` — not currently
+  returned by `getConversations` at all (only used transiently in the
+  mute-toggle response), but the new action sheet needs it up front to
+  label its Mute/Unmute Messages button correctly.
 
 ## Frontend
 
