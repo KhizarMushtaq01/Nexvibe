@@ -203,12 +203,18 @@ behave (never a raw `window.confirm`).
 
 ## Testing
 
-- Backend: controller tests for the four new endpoints (participant-only
-  auth check, toggle correctness, `pendingFor` add-on-create and
-  clear-on-reply) alongside the existing `messageController` test file's
-  conventions.
-- Frontend: `useLongPress` unit test (fires after delay, cancels on
-  move/leave). Manual verification in-browser (via the `run` skill) for
-  the actual gesture feel on both a touch-emulated mobile viewport and
-  desktop mouse, since long-press timing/feel isn't meaningfully
-  verifiable through component tests alone.
+- Backend: the repo has **no test runner configured at all** (no Jest/Mocha,
+  zero `.test.js` files anywhere under `backend/`) — every existing
+  controller, including the rest of `messageController.js`, is verified
+  manually. Adding a test framework is out of scope for this feature; the
+  four new endpoints get manual verification the same way (`curl`/browser,
+  via the `run` skill), consistent with the rest of the backend.
+- Frontend: `vitest` **is** configured and used for pure `lib/` utilities
+  (e.g. `e2eCrypto.test.js`). `useLongPress` is a pure hook, so it gets a
+  real `useLongPress.test.js` (fires after delay, cancels on move/leave)
+  matching that existing convention. The rest of the new UI (components
+  under `components/message/`, `MessagesPage.jsx` changes) has no existing
+  component-test precedent in this codebase to follow, so it's verified
+  manually in-browser (via the `run` skill) — touch-emulated mobile
+  viewport and desktop mouse — since long-press gesture feel isn't
+  meaningfully verifiable through unit tests anyway.
