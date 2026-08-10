@@ -101,8 +101,20 @@ const conversationSchema = new mongoose.Schema({
   isEncrypted: { type: Boolean, default: false },
   
   archivedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  deletedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
-  
+  deletedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+
+  forcedUnreadBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  flaggedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  callMutedBy: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    until: Date
+  }],
+  folderBy: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    folder: { type: String, enum: ['primary', 'general'], default: 'primary' }
+  }],
+  pendingFor: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+
 }, { timestamps: true });
 
 conversationSchema.index({ participants: 1 });
