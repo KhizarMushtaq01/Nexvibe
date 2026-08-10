@@ -3,8 +3,14 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { messageAPI, searchAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
+import { useConfirm } from '../../context/DialogContext';
 import Avatar from '../../components/common/Avatar';
 import ReportModal from '../../components/common/ReportModal';
+import ChatListItem from '../../components/message/ChatListItem';
+import ConversationActionsSheet from '../../components/message/ConversationActionsSheet';
+import SelectionTopBar from '../../components/message/SelectionTopBar';
+import SelectionBottomBar from '../../components/message/SelectionBottomBar';
+import MessageTabs from '../../components/message/MessageTabs';
 import { format, formatDistanceToNow, isToday } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
@@ -22,7 +28,11 @@ export default function MessagesPage() {
   const { user } = useAuth();
   const { on, joinRoom, leaveRoom, emit } = useSocket();
   const navigate = useNavigate();
+  const confirmDialog = useConfirm();
   const [conversations, setConversations] = useState([]);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [activeTab, setActiveTab] = useState('primary');
   const [activeConv, setActiveConv] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
@@ -237,6 +247,101 @@ export default function MessagesPage() {
     return conv.participants?.find(p => (p._id || p) !== user?._id);
   };
 
+  const conversationDisplayName = (conv) => {
+    if (conv.type === 'group') return conv.groupName;
+    const other = getOtherParticipant(conv);
+    return other?.username || other?.fullName || 'Conversation';
+  };
+
+  const enterSelection = (id) => { setSelectionMode(true); setSelectedIds(new Set([id])); };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.size === 0) setSelectionMode(false);
+      return next;
+    });
+  };
+
+  const exitSelection = () => { setSelectionMode(false); setSelectedIds(new Set()); };
+
+  const updateConv = (id, patch) =>
+    setConversations(prev => prev.map(c => (c._id === id ? { ...c, ...patch } : c)));
+
+  const removeConv = (id) => setConversations(prev => prev.filter(c => c._id !== id));
+
+  const folderOf = (conv) => conv.folder || 'primary';
+  const tabToFolder = { primary: 'primary', general: 'general', requests: 'request' };
+  const filteredConversations = conversations.filter(c => folderOf(c) === tabToFolder[activeTab]);
+  const tabCounts = {
+    primary: conversations.filter(c => folderOf(c) === 'primary').length,
+    general: conversations.filter(c => folderOf(c) === 'general').length,
+    requests: conversations.filter(c => folderOf(c) === 'request').length,
+  };
+  const selectedConv = selectedIds.size === 1
+    ? conversations.find(c => c._id === [...selectedIds][0])
+    : null;
+
+  const bulkDelete = async () => {
+    if (!(await confirmDialog({ message: `Delete ${selectedIds.size} chats? This cannot be undone.`, danger: true, confirmLabel: 'Delete' }))) return;
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map(id => messageAPI.deleteConversation(id)));
+      setConversations(prev => prev.filter(c => !ids.includes(c._id)));
+      toast.success('Chats deleted');
+      exitSelection();
+    } catch { toast.error('Failed to delete chats'); }
+  };
+
+  const bulkMoveFolder = async (folder) => {
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map(id => messageAPI.setConversationFolder(id, folder)));
+      setConversations(prev => prev.map(c => (ids.includes(c._id) ? { ...c, folder } : c)));
+      toast.success(folder === 'general' ? 'Moved to General' : 'Moved to Primary');
+      exitSelection();
+    } catch { toast.error('Failed to move chats'); }
+  };
+
+  const bulkMarkRead = async () => {
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map(id => messageAPI.markConversationUnread(id, false)));
+      setConversations(prev => prev.map(c => (ids.includes(c._id) ? { ...c, unreadCount: 0 } : c)));
+      toast.success('Marked as read');
+      exitSelection();
+    } catch { toast.error('Failed to update'); }
+  };
+
+  const bulkMarkUnread = async () => {
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map(id => messageAPI.markConversationUnread(id, true)));
+      setConversations(prev => prev.map(c => (ids.includes(c._id) ? { ...c, unreadCount: Math.max(c.unreadCount, 1) } : c)));
+      toast.success('Marked as unread');
+      exitSelection();
+    } catch { toast.error('Failed to update'); }
+  };
+
+  const bulkMuteMessages = async () => {
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map(id => messageAPI.muteConversation(id)));
+      toast.success('Updated mute settings');
+      exitSelection();
+    } catch { toast.error('Failed to update'); }
+  };
+
+  const bulkMuteCalls = async () => {
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map(id => messageAPI.muteCallNotifications(id)));
+      toast.success('Updated call notification settings');
+      exitSelection();
+    } catch { toast.error('Failed to update'); }
+  };
+
   const formatMsgTime = (date) => {
     const d = new Date(date);
     if (isToday(d)) return format(d, 'h:mm a');
@@ -259,21 +364,29 @@ export default function MessagesPage() {
           ${showChat && !isMobile ? 'w-[350px]' : 'w-full md:w-[350px]'}`}>
 
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-4 border-b border-[var(--border)]">
-            <h1 className="font-bold text-lg">{user?.username}</h1>
-            <button onClick={() => setNewConvoModal(true)}
-              className="p-2 hover:bg-[var(--bg-tertiary)] rounded-full transition-colors">
-              <FiEdit className="w-5 h-5" />
-            </button>
-          </div>
+          {selectionMode ? (
+            <SelectionTopBar count={selectedIds.size} onCancel={exitSelection} />
+          ) : (
+            <>
+              <div className="flex items-center justify-between px-4 py-4 border-b border-[var(--border)]">
+                <h1 className="font-bold text-lg">{user?.username}</h1>
+                <button onClick={() => setNewConvoModal(true)}
+                  className="p-2 hover:bg-[var(--bg-tertiary)] rounded-full transition-colors">
+                  <FiEdit className="w-5 h-5" />
+                </button>
+              </div>
 
-          {/* Search bar */}
-          <div className="px-4 py-2.5">
-            <div className="flex items-center gap-2 bg-[var(--bg-tertiary)] rounded-xl px-3 py-2">
-              <FiSearch className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" />
-              <input placeholder="Search messages" className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--text-muted)]" />
-            </div>
-          </div>
+              {/* Search bar */}
+              <div className="px-4 py-2.5">
+                <div className="flex items-center gap-2 bg-[var(--bg-tertiary)] rounded-xl px-3 py-2">
+                  <FiSearch className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" />
+                  <input placeholder="Search messages" className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--text-muted)]" />
+                </div>
+              </div>
+            </>
+          )}
+
+          <MessageTabs activeTab={activeTab} onChange={setActiveTab} counts={tabCounts} />
 
           {/* Conversations */}
           <div className="flex-1 overflow-y-auto">
@@ -298,51 +411,38 @@ export default function MessagesPage() {
                   Send message
                 </button>
               </div>
-            ) : conversations.map(conv => {
-              const other = getOtherParticipant(conv);
-              const isActive = conv._id === conversationId;
-              const lastMsg = conv.lastMessage;
-              return (
-                <div key={conv._id}
-                  onClick={() => navigate(`/messages/${conv._id}`)}
-                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors
-                    ${isActive ? 'bg-[var(--bg-tertiary)]' : 'hover:bg-[var(--bg-secondary)]'}`}>
-                  <div className="relative flex-shrink-0">
-                    <Avatar
-                      src={conv.type === 'group' ? conv.groupAvatar : other?.avatar}
-                      size={56} alt={conv.type === 'group' ? conv.groupName : other?.fullName} />
-                    {other?.isOnline && (
-                      <div className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[var(--bg-primary)]" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className={`text-sm truncate ${conv.unreadCount ? 'font-bold' : 'font-semibold'}`}>
-                        {conv.type === 'group' ? conv.groupName : other?.username}
-                      </span>
-                      <span className="text-[11px] text-[var(--text-muted)] flex-shrink-0 ml-2">
-                        {conv.lastMessageAt && formatMsgTime(conv.lastMessageAt)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className={`text-xs truncate flex items-center gap-1 ${conv.unreadCount ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-muted)]'}`}>
-                        {lastMsg?.isUnsent ? 'Message unsent'
-                          : lastMsg?.type === 'image' ? <><FiCamera className="w-3 h-3 flex-shrink-0" /> Photo</>
-                          : lastMsg?.type === 'video' ? <><FiVideo className="w-3 h-3 flex-shrink-0" /> Video</>
-                          : lastMsg?.encrypted ? <><FiLock className="w-3 h-3 flex-shrink-0" /> Encrypted message</>
-                          : lastMsg?.content || 'Start a conversation'}
-                      </p>
-                      {conv.unreadCount > 0 && (
-                        <span className="ml-2 w-5 h-5 bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center flex-shrink-0">
-                          {conv.unreadCount > 9 ? '9+' : conv.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            ) : filteredConversations.length === 0 ? (
+              <div className="flex items-center justify-center py-16 px-4">
+                <p className="text-sm text-[var(--text-muted)]">No conversations here</p>
+              </div>
+            ) : filteredConversations.map(conv => (
+              <ChatListItem
+                key={conv._id}
+                conv={conv}
+                isActive={conv._id === conversationId}
+                currentUserId={user?._id}
+                selectionMode={selectionMode}
+                isSelected={selectedIds.has(conv._id)}
+                onOpen={(id) => navigate(`/messages/${id}`)}
+                onLongPress={enterSelection}
+                onToggleSelect={toggleSelect}
+                formatMsgTime={formatMsgTime}
+              />
+            ))}
           </div>
+
+          {selectionMode && (
+            <SelectionBottomBar
+              count={selectedIds.size}
+              activeTab={activeTab}
+              onDelete={bulkDelete}
+              onMoveFolder={bulkMoveFolder}
+              onMarkRead={bulkMarkRead}
+              onMarkUnread={bulkMarkUnread}
+              onMuteMessages={bulkMuteMessages}
+              onMuteCalls={bulkMuteCalls}
+            />
+          )}
         </div>
       )}
 
@@ -628,6 +728,17 @@ export default function MessagesPage() {
           label="Report this message"
           evidenceContent={reportingMessage.content}
           onClose={() => setReportingMessage(null)}
+        />
+      )}
+
+      {/* Single-conversation quick-action sheet */}
+      {selectedConv && (
+        <ConversationActionsSheet
+          conversation={selectedConv}
+          title={conversationDisplayName(selectedConv)}
+          onClose={exitSelection}
+          onUpdate={updateConv}
+          onDelete={(id) => { removeConv(id); exitSelection(); }}
         />
       )}
     </div>
