@@ -6,6 +6,39 @@ import { sendNewMessageEmail } from '../utils/email.js';
 import { getSocketId } from '../config/socket.js';
 import fs from 'fs';
 
+// These per-user arrays record one participant's private state about a
+// conversation (mute/flag/delete/folder/etc preferences, pending-request
+// status). They must never be sent to a *different* participant -- doing so
+// would leak e.g. "the other person flagged/muted/deleted this chat" or
+// "you're in their message requests". Callers that need one participant's
+// own status compute a derived boolean/string field instead (see
+// getConversations) and this strips the raw arrays from what's returned.
+const PRIVATE_PER_USER_FIELDS = ['mutedBy', 'archivedBy', 'deletedBy', 'flaggedBy', 'forcedUnreadBy', 'callMutedBy', 'folderBy', 'pendingFor'];
+
+const stripPrivateFields = (convObj) => {
+  const copy = { ...convObj };
+  for (const field of PRIVATE_PER_USER_FIELDS) delete copy[field];
+  return copy;
+};
+
+// Loads a conversation the requester must be a participant of. On failure,
+// writes the appropriate error response itself and returns null -- callers
+// just do `const conversation = await loadParticipantConversation(req, res); if (!conversation) return;`.
+// Centralizing this closes the gap where a new conversation-action endpoint
+// could be added without an authorization check.
+const loadParticipantConversation = async (req, res) => {
+  const conversation = await Conversation.findById(req.params.conversationId);
+  if (!conversation) {
+    res.status(404).json({ success: false, message: 'Conversation not found' });
+    return null;
+  }
+  if (!conversation.participants.includes(req.user._id)) {
+    res.status(403).json({ success: false, message: 'Not authorized' });
+    return null;
+  }
+  return conversation;
+};
+
 // Lazily activate E2E encryption on a direct conversation once BOTH
 // participants have published an identity key. Called from every path that
 // opens a thread (get-or-create AND plain message fetch) so a conversation
@@ -62,11 +95,17 @@ export const getOrCreateConversation = async (req, res) => {
       });
       conversation = await Conversation.findById(conversation._id)
         .populate('participants', 'username fullName avatar isVerified isOnline lastSeen e2e.identityKey');
+    } else if (conversation.deletedBy?.some(id => id.toString() === req.user._id.toString())) {
+      // Deliberately re-opening a conversation you previously deleted brings
+      // it back: otherwise the thread you're being navigated into would be
+      // missing from your list on the very next fetch.
+      conversation.deletedBy.pull(req.user._id);
+      await conversation.save();
     }
 
     await activateEncryptionIfReady(conversation);
 
-    res.json({ success: true, conversation });
+    res.json({ success: true, conversation: stripPrivateFields(conversation.toObject()) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -110,7 +149,7 @@ export const getConversations = async (req, res) => {
       const isForcedUnread = conv.forcedUnreadBy?.some(id => id.toString() === uid);
       const unreadCount = isForcedUnread ? Math.max(realUnreadCount, 1) : realUnreadCount;
 
-      return { ...conv.toObject(), unreadCount, folder, isFlagged, isMuted, isCallMuted };
+      return { ...stripPrivateFields(conv.toObject()), unreadCount, folder, isFlagged, isMuted, isCallMuted };
     }));
 
     res.json({ success: true, conversations: convWithExtras });
@@ -235,6 +274,17 @@ export const sendMessage = async (req, res) => {
 
     conversation.lastMessage = message._id;
     conversation.lastMessageAt = new Date();
+
+    // A new message un-deletes the conversation for everyone receiving it --
+    // otherwise a conversation someone deleted would silently swallow every
+    // future incoming message with no way to ever see it again.
+    const messageRecipients = conversation.participants.filter(
+      p => p.toString() !== req.user._id.toString()
+    );
+    for (const recipientId of messageRecipients) {
+      conversation.deletedBy.pull(recipientId);
+    }
+
     await conversation.save();
 
     const populated = await Message.findById(message._id)
@@ -259,10 +309,16 @@ export const sendMessage = async (req, res) => {
     // offline recipients if this is the first unread message (avoid spamming
     // back-to-back sends). Never throws into the request lifecycle.
     try {
-      const recipients = conversation.participants.filter(
-        p => p.toString() !== req.user._id.toString()
-      );
-      for (const recipientId of recipients) {
+      // Same set computed above for the un-delete pass.
+      for (const recipientId of messageRecipients) {
+        // "Mute Messages" on a conversation suppresses its notifications and
+        // emails for that participant only, until the mute expires.
+        const isMutedForRecipient = conversation.mutedBy?.some(m => {
+          if (m.user.toString() !== recipientId.toString()) return false;
+          return !m.until || new Date(m.until).getTime() > Date.now();
+        });
+        if (isMutedForRecipient) continue;
+
         const recipientUser = await User.findById(recipientId).select('email fullName settings.notifications.messages');
         if (recipientUser?.settings?.notifications?.messages === false) continue;
 
@@ -370,7 +426,7 @@ export const createGroup = async (req, res) => {
     });
 
     const populated = await Conversation.findById(group._id).populate('participants', 'username fullName avatar isVerified');
-    res.status(201).json({ success: true, conversation: populated });
+    res.status(201).json({ success: true, conversation: stripPrivateFields(populated.toObject()) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -391,7 +447,7 @@ export const updateGroup = async (req, res) => {
     if (groupDescription) conversation.groupDescription = groupDescription;
     await conversation.save();
 
-    res.json({ success: true, conversation });
+    res.json({ success: true, conversation: stripPrivateFields(conversation.toObject()) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -416,7 +472,7 @@ export const addGroupMembers = async (req, res) => {
 
     await conversation.save();
     const populated = await Conversation.findById(conversation._id).populate('participants', 'username fullName avatar isVerified');
-    res.json({ success: true, conversation: populated });
+    res.json({ success: true, conversation: stripPrivateFields(populated.toObject()) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -444,8 +500,8 @@ export const leaveGroup = async (req, res) => {
 export const muteConversation = async (req, res) => {
   try {
     const { duration } = req.body; // hours
-    const conversation = await Conversation.findById(req.params.conversationId);
-    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
+    const conversation = await loadParticipantConversation(req, res);
+    if (!conversation) return;
 
     const existing = conversation.mutedBy.find(m => m.user.toString() === req.user._id.toString());
     if (existing) {
@@ -468,8 +524,8 @@ export const muteConversation = async (req, res) => {
 // @route   POST /api/messages/conversations/:conversationId/archive
 export const archiveConversation = async (req, res) => {
   try {
-    const conversation = await Conversation.findById(req.params.conversationId);
-    if (!conversation) return res.status(404).json({ success: false, message: 'Not found' });
+    const conversation = await loadParticipantConversation(req, res);
+    if (!conversation) return;
 
     const isArchived = conversation.archivedBy.includes(req.user._id);
     isArchived
@@ -487,11 +543,8 @@ export const archiveConversation = async (req, res) => {
 // @route   DELETE /api/messages/conversations/:conversationId
 export const deleteConversation = async (req, res) => {
   try {
-    const conversation = await Conversation.findById(req.params.conversationId);
-    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
-    if (!conversation.participants.includes(req.user._id)) {
-      return res.status(403).json({ success: false, message: 'Not authorized' });
-    }
+    const conversation = await loadParticipantConversation(req, res);
+    if (!conversation) return;
 
     if (!conversation.deletedBy.includes(req.user._id)) {
       conversation.deletedBy.push(req.user._id);
@@ -509,11 +562,8 @@ export const deleteConversation = async (req, res) => {
 export const markConversationUnread = async (req, res) => {
   try {
     const { unread } = req.body;
-    const conversation = await Conversation.findById(req.params.conversationId);
-    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
-    if (!conversation.participants.includes(req.user._id)) {
-      return res.status(403).json({ success: false, message: 'Not authorized' });
-    }
+    const conversation = await loadParticipantConversation(req, res);
+    if (!conversation) return;
 
     if (unread) {
       if (!conversation.forcedUnreadBy.includes(req.user._id)) {
@@ -546,11 +596,8 @@ export const markConversationUnread = async (req, res) => {
 // @route   POST /api/messages/conversations/:conversationId/flag
 export const flagConversation = async (req, res) => {
   try {
-    const conversation = await Conversation.findById(req.params.conversationId);
-    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
-    if (!conversation.participants.includes(req.user._id)) {
-      return res.status(403).json({ success: false, message: 'Not authorized' });
-    }
+    const conversation = await loadParticipantConversation(req, res);
+    if (!conversation) return;
 
     const isFlagged = conversation.flaggedBy.includes(req.user._id);
     isFlagged
@@ -569,11 +616,8 @@ export const flagConversation = async (req, res) => {
 export const muteCallNotifications = async (req, res) => {
   try {
     const { duration } = req.body; // hours
-    const conversation = await Conversation.findById(req.params.conversationId);
-    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
-    if (!conversation.participants.includes(req.user._id)) {
-      return res.status(403).json({ success: false, message: 'Not authorized' });
-    }
+    const conversation = await loadParticipantConversation(req, res);
+    if (!conversation) return;
 
     const existing = conversation.callMutedBy.find(m => m.user.toString() === req.user._id.toString());
     if (existing) {
@@ -601,11 +645,8 @@ export const setConversationFolder = async (req, res) => {
       return res.status(400).json({ success: false, message: "folder must be 'primary' or 'general'" });
     }
 
-    const conversation = await Conversation.findById(req.params.conversationId);
-    if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
-    if (!conversation.participants.includes(req.user._id)) {
-      return res.status(403).json({ success: false, message: 'Not authorized' });
-    }
+    const conversation = await loadParticipantConversation(req, res);
+    if (!conversation) return;
 
     const existing = conversation.folderBy.find(f => f.user.toString() === req.user._id.toString());
     if (existing) {
@@ -628,7 +669,13 @@ export const setConversationFolder = async (req, res) => {
 // @route   GET /api/messages/unread-count
 export const getUnreadCount = async (req, res) => {
   try {
-    const conversations = await Conversation.find({ participants: req.user._id });
+    // Mirrors getConversations: a conversation the user deleted contributes
+    // nothing, and one they explicitly marked unread counts as at least 1, so
+    // the global badge agrees with the per-conversation badges in the list.
+    const conversations = await Conversation.find({
+      participants: req.user._id,
+      deletedBy: { $ne: req.user._id }
+    });
     let totalUnread = 0;
     for (const conv of conversations) {
       const count = await Message.countDocuments({
@@ -637,7 +684,8 @@ export const getUnreadCount = async (req, res) => {
         'readBy.user': { $ne: req.user._id },
         isDeleted: false
       });
-      totalUnread += count;
+      const isForcedUnread = conv.forcedUnreadBy?.some(id => id.toString() === req.user._id.toString());
+      totalUnread += isForcedUnread ? Math.max(count, 1) : count;
     }
     res.json({ success: true, unreadCount: totalUnread });
   } catch (error) {

@@ -105,6 +105,11 @@ const conversationSchema = new mongoose.Schema({
 
   forcedUnreadBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   flaggedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  // Persisted for the "Mute Call Notifications" UI action. Not yet enforced
+  // anywhere -- there is no per-conversation call-notification path in this
+  // app to gate (see config/socket.js's call:incoming, which is keyed by
+  // caller/receiver id, not conversation). Wire this up when real
+  // per-conversation call notifications exist.
   callMutedBy: [{
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     until: Date

@@ -1,4 +1,3 @@
-// frontend/src/components/message/SelectionBottomBar.jsx
 import { useState } from 'react';
 import ActionSheet from './ActionSheet';
 

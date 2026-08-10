@@ -49,6 +49,19 @@ export function createLongPressHandlers(onLongPress, { delay = 500, moveThreshol
     onMouseDown: (e) => start(e.clientX, e.clientY),
     onMouseMove: (e) => moved(e.clientX, e.clientY),
     onMouseUp: clear,
-    onMouseLeave: clear
+    onMouseLeave: clear,
+    // Mouse has no equivalent of touch's preventDefault-on-touchend trick:
+    // calling preventDefault() on a real mouseup does NOT stop the browser
+    // from firing the subsequent click. So the click handler has to ask
+    // whether the click it just received is the tail of a long-press that
+    // already fired, and ignore it if so. Returns true exactly once per
+    // fired long-press.
+    consumeSuppressedClick: () => {
+      if (fired) {
+        fired = false;
+        return true;
+      }
+      return false;
+    }
   };
 }

@@ -253,7 +253,19 @@ export default function MessagesPage() {
     return other?.username || other?.fullName || 'Conversation';
   };
 
-  const enterSelection = (id) => setSelectedIds(new Set([id]));
+  // Long-pressing while already in selection mode extends the selection
+  // instead of collapsing it to the pressed row. Uses the functional updater
+  // so it reads the live selection: ChatListItem caches its long-press
+  // callback for the lifetime of the row, so a `selectionMode` read from this
+  // render's closure would be frozen at whatever it was when the row mounted.
+  const enterSelection = (id) => {
+    setSelectedIds(prev => {
+      if (prev.size === 0) return new Set([id]);
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
 
   const toggleSelect = (id) => {
     setSelectedIds(prev => {
@@ -282,71 +294,90 @@ export default function MessagesPage() {
     ? conversations.find(c => c._id === [...selectedIds][0])
     : null;
 
+  // Bulk actions fire one request per selected chat, and any single one can
+  // fail on its own (e.g. the other participant deleted the conversation
+  // meanwhile). Promise.allSettled + a per-id success list keeps the list in
+  // sync with what actually happened server-side instead of discarding every
+  // successful update because one sibling rejected.
+  const settleBulk = async (ids, run) => {
+    const results = await Promise.allSettled(ids.map(run));
+    const succeeded = ids.filter((id, i) => results[i].status === 'fulfilled');
+    return { results, succeededIds: succeeded, failedCount: ids.length - succeeded.length };
+  };
+
+  const reportBulk = (succeededIds, failedCount, successMsg, failMsg, verb) => {
+    if (failedCount === 0) { toast.success(successMsg); exitSelection(); }
+    else if (succeededIds.length === 0) { toast.error(failMsg); }
+    else { toast.error(`${verb} ${succeededIds.length}, ${failedCount} failed`); exitSelection(); }
+  };
+
   const bulkDelete = async () => {
     if (!(await confirmDialog({ message: `Delete ${selectedIds.size} chats? This cannot be undone.`, danger: true, confirmLabel: 'Delete' }))) return;
     const ids = [...selectedIds];
-    try {
-      await Promise.all(ids.map(id => messageAPI.deleteConversation(id)));
-      setConversations(prev => prev.filter(c => !ids.includes(c._id)));
-      toast.success('Chats deleted');
-      exitSelection();
-    } catch { toast.error('Failed to delete chats'); }
+    const { succeededIds, failedCount } = await settleBulk(ids, id => messageAPI.deleteConversation(id));
+    if (succeededIds.length > 0) {
+      setConversations(prev => prev.filter(c => !succeededIds.includes(c._id)));
+    }
+    reportBulk(succeededIds, failedCount, 'Chats deleted', 'Failed to delete chats', 'Deleted');
   };
 
   const bulkMoveFolder = async (folder) => {
     const ids = [...selectedIds];
-    try {
-      await Promise.all(ids.map(id => messageAPI.setConversationFolder(id, folder)));
-      setConversations(prev => prev.map(c => (ids.includes(c._id) ? { ...c, folder } : c)));
-      toast.success(folder === 'general' ? 'Moved to General' : 'Moved to Primary');
-      exitSelection();
-    } catch { toast.error('Failed to move chats'); }
+    const { succeededIds, failedCount } = await settleBulk(ids, id => messageAPI.setConversationFolder(id, folder));
+    if (succeededIds.length > 0) {
+      setConversations(prev => prev.map(c => (succeededIds.includes(c._id) ? { ...c, folder } : c)));
+    }
+    reportBulk(
+      succeededIds, failedCount,
+      folder === 'general' ? 'Moved to General' : 'Moved to Primary',
+      'Failed to move chats', 'Moved'
+    );
   };
 
   const bulkMarkRead = async () => {
     const ids = [...selectedIds];
-    try {
-      await Promise.all(ids.map(id => messageAPI.markConversationUnread(id, false)));
-      setConversations(prev => prev.map(c => (ids.includes(c._id) ? { ...c, unreadCount: 0 } : c)));
-      toast.success('Marked as read');
-      exitSelection();
-    } catch { toast.error('Failed to update'); }
+    const { succeededIds, failedCount } = await settleBulk(ids, id => messageAPI.markConversationUnread(id, false));
+    if (succeededIds.length > 0) {
+      setConversations(prev => prev.map(c => (succeededIds.includes(c._id) ? { ...c, unreadCount: 0 } : c)));
+    }
+    reportBulk(succeededIds, failedCount, 'Marked as read', 'Failed to update', 'Updated');
   };
 
   const bulkMarkUnread = async () => {
     const ids = [...selectedIds];
-    try {
-      await Promise.all(ids.map(id => messageAPI.markConversationUnread(id, true)));
-      setConversations(prev => prev.map(c => (ids.includes(c._id) ? { ...c, unreadCount: Math.max(c.unreadCount || 0, 1) } : c)));
-      toast.success('Marked as unread');
-      exitSelection();
-    } catch { toast.error('Failed to update'); }
+    const { succeededIds, failedCount } = await settleBulk(ids, id => messageAPI.markConversationUnread(id, true));
+    if (succeededIds.length > 0) {
+      setConversations(prev => prev.map(c => (succeededIds.includes(c._id)
+        ? { ...c, unreadCount: Math.max(c.unreadCount || 0, 1) }
+        : c)));
+    }
+    reportBulk(succeededIds, failedCount, 'Marked as unread', 'Failed to update', 'Updated');
   };
 
   const bulkMuteMessages = async () => {
     const ids = [...selectedIds];
-    try {
-      const results = await Promise.all(ids.map(id => messageAPI.muteConversation(id)));
-      setConversations(prev => prev.map(c => {
-        const idx = ids.indexOf(c._id);
-        return idx === -1 ? c : { ...c, isMuted: results[idx].data.isMuted };
-      }));
-      toast.success('Updated mute settings');
-      exitSelection();
-    } catch { toast.error('Failed to update'); }
+    const { results, succeededIds, failedCount } = await settleBulk(ids, id => messageAPI.muteConversation(id));
+    if (succeededIds.length > 0) {
+      // Mute is a per-conversation TOGGLE, so the resulting state differs per
+      // chat -- read each one's own response rather than assuming a value.
+      const muteById = new Map(
+        ids.flatMap((id, i) => (results[i].status === 'fulfilled' ? [[id, results[i].value.data.isMuted]] : []))
+      );
+      setConversations(prev => prev.map(c => (muteById.has(c._id) ? { ...c, isMuted: muteById.get(c._id) } : c)));
+    }
+    reportBulk(succeededIds, failedCount, 'Updated mute settings', 'Failed to update', 'Updated');
   };
 
   const bulkMuteCalls = async () => {
     const ids = [...selectedIds];
-    try {
-      const results = await Promise.all(ids.map(id => messageAPI.muteCallNotifications(id)));
-      setConversations(prev => prev.map(c => {
-        const idx = ids.indexOf(c._id);
-        return idx === -1 ? c : { ...c, isCallMuted: results[idx].data.isCallMuted };
-      }));
-      toast.success('Updated call notification settings');
-      exitSelection();
-    } catch { toast.error('Failed to update'); }
+    const { results, succeededIds, failedCount } = await settleBulk(ids, id => messageAPI.muteCallNotifications(id));
+    if (succeededIds.length > 0) {
+      const callMuteById = new Map(
+        ids.flatMap((id, i) => (results[i].status === 'fulfilled' ? [[id, results[i].value.data.isCallMuted]] : []))
+      );
+      setConversations(prev => prev.map(c => (callMuteById.has(c._id) ? { ...c, isCallMuted: callMuteById.get(c._id) } : c)));
+    }
+    reportBulk(succeededIds, failedCount, 'Updated call notification settings', 'Failed to update', 'Updated');
   };
 
   const formatMsgTime = (date) => {
@@ -438,7 +469,10 @@ export default function MessagesPage() {
             ))}
           </div>
 
-          {selectionMode && (
+          {/* At exactly 1 selected, ConversationActionsSheet covers this bar.
+              Rendering it anyway would leave invisible buttons in the tab
+              order, so gate on the count at which it's actually visible. */}
+          {selectedIds.size > 1 && (
             <SelectionBottomBar
               count={selectedIds.size}
               activeTab={activeTab}

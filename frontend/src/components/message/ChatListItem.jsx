@@ -10,9 +10,24 @@ export default function ChatListItem({
   const other = conv.type === 'group' ? null : conv.participants?.find(p => (p._id || p) !== currentUserId);
   const lastMsg = conv.lastMessage;
 
-  const pressHandlers = useRef(createLongPressHandlers(() => onLongPress(conv._id))).current;
+  // The handler set is created once per row (a fresh one each render would
+  // lose the in-flight press timer), but it must call the CURRENT onLongPress
+  // prop -- the parent's handler closes over selection state that changes
+  // between renders, so capturing the first render's copy would freeze it.
+  const longPressRef = useRef(null);
+  longPressRef.current = () => onLongPress(conv._id);
+
+  const pressHandlersRef = useRef(null);
+  if (pressHandlersRef.current === null) {
+    pressHandlersRef.current = createLongPressHandlers(() => longPressRef.current());
+  }
+  const pressHandlers = pressHandlersRef.current;
+  // consumeSuppressedClick is an imperative query, not a DOM event handler --
+  // keep it out of the props spread below.
+  const { consumeSuppressedClick, ...domPressHandlers } = pressHandlers;
 
   const handleClick = () => {
+    if (consumeSuppressedClick()) return;
     if (selectionMode) onToggleSelect(conv._id);
     else onOpen(conv._id);
   };
@@ -20,7 +35,7 @@ export default function ChatListItem({
   return (
     <div
       onClick={handleClick}
-      {...pressHandlers}
+      {...domPressHandlers}
       className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors select-none
         ${isActive ? 'bg-[var(--bg-tertiary)]' : 'hover:bg-[var(--bg-secondary)]'}`}>
       <div className="relative flex-shrink-0">

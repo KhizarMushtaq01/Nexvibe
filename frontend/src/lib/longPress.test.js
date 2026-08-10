@@ -95,4 +95,27 @@ describe('createLongPressHandlers', () => {
     expect(preventDefault).not.toHaveBeenCalled();
     expect(onLongPress).not.toHaveBeenCalled();
   });
+
+  it('consumeSuppressedClick returns true once after a fired long-press, then false', () => {
+    const onLongPress = vi.fn();
+    const handlers = createLongPressHandlers(onLongPress, { delay: 500 });
+
+    handlers.onMouseDown({ clientX: 0, clientY: 0 });
+    vi.advanceTimersByTime(500);
+    expect(onLongPress).toHaveBeenCalledTimes(1);
+
+    expect(handlers.consumeSuppressedClick()).toBe(true);
+    expect(handlers.consumeSuppressedClick()).toBe(false);
+  });
+
+  it('consumeSuppressedClick returns false when no long-press fired', () => {
+    const onLongPress = vi.fn();
+    const handlers = createLongPressHandlers(onLongPress, { delay: 500 });
+
+    handlers.onMouseDown({ clientX: 0, clientY: 0 });
+    vi.advanceTimersByTime(300);
+    handlers.onMouseUp();
+
+    expect(handlers.consumeSuppressedClick()).toBe(false);
+  });
 });
