@@ -2945,20 +2945,31 @@ git commit -m "feat: wire the chat header audio and video call buttons"
 - Modify: `backend/controllers/messageController.js` (add `logCall`)
 - Modify: `backend/routes/messageRoutes.js` (add the route)
 - Modify: `frontend/src/pages/main/MessagesPage.jsx` (render `type: 'call'` messages)
-- Test: `backend/lib/callLog.test.js`
-- Create: `backend/lib/callLog.js`
+- Test: `frontend/src/lib/callLog.test.js`
+- Create: `frontend/src/lib/callLog.js`
+- Create: `backend/lib/callOutcomes.js`
 
 **Interfaces:**
 - Consumes: `messageAPI.logCall` (added in Task 6 Step 2).
-- Produces: `describeCallLog({ callType, outcome, duration, isMine }) => string`, used by both the server (for the notification text) and the client (for the thread row).
+- Produces:
+  - `describeCallLog({ callType, outcome, duration, isMine }) => string` and `formatCallDuration(seconds) => string` from `frontend/src/lib/callLog.js` — the client renders every call row.
+  - `CALL_OUTCOMES: string[]` from `backend/lib/callOutcomes.js` — the server only needs the valid-outcome list for validation and the `Message.callInfo` enum.
+
+**Where the call-description text lives (and why it is not shared):** the
+server does not format call rows at all. It stores the structured
+`callInfo` and the client renders the wording. The one string the server
+does produce is the missed-call notification text, which is a single
+inline literal — not worth a shared module, and certainly not worth
+duplicating a formatter across two npm packages that have no shared
+module path.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `backend/lib/callLog.test.js`:
+Create `frontend/src/lib/callLog.test.js`:
 
 ```js
 import { describe, it, expect } from 'vitest';
-import { describeCallLog, CALL_OUTCOMES, formatCallDuration } from './callLog.js';
+import { describeCallLog, formatCallDuration } from './callLog.js';
 
 describe('formatCallDuration', () => {
   it('formats under a minute', () => expect(formatCallDuration(42)).toBe('0:42'));
@@ -3003,27 +3014,32 @@ describe('describeCallLog', () => {
   it('falls back gracefully on an unknown outcome', () => {
     expect(describeCallLog({ callType: 'audio', outcome: 'weird' })).toBe('Audio call');
   });
-
-  it('exports the exact set of outcomes the schema allows', () => {
-    expect(CALL_OUTCOMES).toEqual(['completed', 'missed', 'declined', 'failed', 'busy']);
-  });
 });
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run from `backend/`: `npx vitest run lib/callLog.test.js`
+Run from `frontend/`: `npx vitest run src/lib/callLog.test.js`
 Expected: FAIL — cannot resolve `./callLog.js`.
 
 - [ ] **Step 3: Write the implementation**
 
-Create `backend/lib/callLog.js`:
+Create `backend/lib/callOutcomes.js` — the server's entire share of this
+concern is knowing which outcomes are valid:
 
 ```js
-// Shared by the server (notification text) and mirrored by the client
-// (thread row), so a call reads the same wherever it is shown.
-
+// The outcomes a finished call can report. Used by the Message.callInfo
+// enum and by logCall's validation. The server never formats call text --
+// the client owns every user-facing string about a call.
 export const CALL_OUTCOMES = ['completed', 'missed', 'declined', 'failed', 'busy'];
+```
+
+Create `frontend/src/lib/callLog.js`:
+
+```js
+// Every user-facing description of a call is rendered client-side from the
+// structured callInfo the server stores, so there is exactly one place
+// this wording lives.
 
 export const formatCallDuration = (seconds) => {
   const s = Math.max(0, Math.floor(seconds || 0));
@@ -3054,12 +3070,18 @@ export const describeCallLog = ({ callType, outcome, duration, isMine = false })
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run from `backend/`: `npx vitest run lib/callLog.test.js`
-Expected: PASS, 13 tests.
+Run from `frontend/`: `npx vitest run src/lib/callLog.test.js`
+Expected: PASS, 12 tests.
 
 - [ ] **Step 5: Add `callInfo` to the Message schema**
 
-In `backend/models/Message.js`, inside `messageSchema`, add after the `isUnsent` field (line 62):
+In `backend/models/Message.js`, add the import at the top with the others:
+
+```js
+import { CALL_OUTCOMES } from '../lib/callOutcomes.js';
+```
+
+and inside `messageSchema`, add after the `isUnsent` field (line 62):
 
 ```js
   // Populated only when type === 'call'. `callId` is unique-per-call so a
@@ -3067,7 +3089,7 @@ In `backend/models/Message.js`, inside `messageSchema`, add after the `isUnsent`
   callInfo: {
     callId: { type: String, index: true },
     callType: { type: String, enum: ['audio', 'video'] },
-    outcome: { type: String, enum: ['completed', 'missed', 'declined', 'failed', 'busy'] },
+    outcome: { type: String, enum: CALL_OUTCOMES },
     duration: { type: Number, default: 0 },
     participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
   }
@@ -3087,7 +3109,7 @@ In `backend/models/Notification.js`, add `'missed_call'` to the `type` enum (lin
 In `backend/controllers/messageController.js`, add this import at the top with the others:
 
 ```js
-import { CALL_OUTCOMES, describeCallLog } from '../lib/callLog.js';
+import { CALL_OUTCOMES } from '../lib/callOutcomes.js';
 ```
 
 and append this exported function at the end of the file:
@@ -3138,11 +3160,15 @@ export const logCall = async (req, res) => {
         .filter(id => id !== req.user._id.toString() && !callMutedIds.has(id));
 
       if (recipients.length) {
+        // The only call wording the server produces. Everything else about
+        // a call is rendered client-side from callInfo, so this stays a
+        // plain literal rather than importing a formatter.
+        const text = callType === 'video' ? 'Missed video call' : 'Missed audio call';
         await Notification.insertMany(recipients.map(recipient => ({
           recipient,
           sender: req.user._id,
           type: 'missed_call',
-          text: describeCallLog({ callType, outcome: 'missed', isMine: false })
+          text
         })));
       }
     }
@@ -3167,24 +3193,9 @@ msgRouter.post('/conversations/:conversationId/call-log', protect, msg.logCall);
 
 - [ ] **Step 9: Render call rows in the thread**
 
-Create `frontend/src/lib/callLog.js` with the same three functions as `backend/lib/callLog.js` from Step 3. The frontend and backend are separate npm packages with no shared module path, so this is a deliberate duplicate rather than an import — copy the body verbatim and replace only the header comment:
+`frontend/src/lib/callLog.js` already exists from Step 3 — it is the single home for this wording. Reference for what it exports:
 
 ```js
-// Kept in sync with backend/lib/callLog.js. The frontend and backend are
-// separate npm packages with no shared module path, so this is a deliberate
-// duplicate rather than an import. If you change one, change both.
-
-export const CALL_OUTCOMES = ['completed', 'missed', 'declined', 'failed', 'busy'];
-
-export const formatCallDuration = (seconds) => {
-  const s = Math.max(0, Math.floor(seconds || 0));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  const pad = (n) => String(n).padStart(2, '0');
-  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
-};
-
 export const describeCallLog = ({ callType, outcome, duration, isMine = false }) => {
   const kind = callType === 'video' ? 'Video call' : 'Audio call';
   switch (outcome) {
@@ -3225,15 +3236,15 @@ Place it immediately after `const isRead = ...` and before the `return (` of the
 
 - [ ] **Step 10: Verify**
 
-Run from `backend/`: `npx vitest run lib/callLog.test.js` → PASS.
-Run from `frontend/`: `npm run build` → succeeds.
+Run from `frontend/`: `npx vitest run src/lib/callLog.test.js && npm run build` → both succeed.
+Run from `backend/`: `node --check controllers/messageController.js` → parses.
 
 Then with two browsers: place a call, end it, and confirm the thread shows "Audio call · 0:07" on both sides after a refresh. Place a call and let it ring out; confirm the caller sees "No answer", the callee sees "Missed audio call", and the callee has a notification. Mute call notifications for that chat and repeat — no notification this time.
 
 - [ ] **Step 11: Commit**
 
 ```bash
-git add backend/lib/callLog.js backend/lib/callLog.test.js backend/models/Message.js backend/models/Notification.js backend/controllers/messageController.js backend/routes/messageRoutes.js frontend/src/lib/callLog.js frontend/src/pages/main/MessagesPage.jsx
+git add backend/lib/callOutcomes.js backend/models/Message.js backend/models/Notification.js backend/controllers/messageController.js backend/routes/messageRoutes.js frontend/src/lib/callLog.js frontend/src/lib/callLog.test.js frontend/src/pages/main/MessagesPage.jsx
 git commit -m "feat: log calls into the chat thread and notify on missed calls"
 ```
 
@@ -3249,7 +3260,7 @@ Expected: all suites pass, including the pre-existing `deviceDetect`, `e2eCrypto
 - [ ] **Step 2: Run every backend test**
 
 Run from `backend/`: `npx vitest run`
-Expected: `callRegistry`, `socket.calls` and `callLog` suites pass.
+Expected: the `callRegistry` and `socket.calls` suites pass.
 
 - [ ] **Step 3: Production build**
 
