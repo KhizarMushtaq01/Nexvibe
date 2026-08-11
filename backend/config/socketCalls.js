@@ -32,8 +32,14 @@ export const registerCallHandlers = ({
   };
 
   // A relay is only allowed if the sender and the recipient are both in the
-  // named call. Returns false (and sends nothing) otherwise.
-  const relay = (event, { callId, toUserId }, payload) => {
+  // named call. Returns false (and sends nothing) otherwise. `data` is
+  // untrusted client input and may be missing, null, or garbage -- destructure
+  // from `data || {}` rather than in the parameter list, because a default
+  // parameter only covers `undefined`, not an explicit `null` payload, and a
+  // destructure throw here would be an uncaught TypeError that crashes the
+  // whole process (socket.io invokes listeners outside any try/catch).
+  const relay = (event, data, payload) => {
+    const { callId, toUserId } = data || {};
     if (!callId || !toUserId) return false;
     if (!registry.isMember(callId, me())) return false;
     if (!registry.isMember(callId, toUserId)) return false;
@@ -48,7 +54,11 @@ export const registerCallHandlers = ({
     }
   };
 
-  socket.on('call:initiate', async ({ callId, conversationId, participantIds, callType }) => {
+  socket.on('call:initiate', async (data) => {
+    // Same reasoning as relay(): destructure from `data || {}`, not the
+    // parameter list, so a missing or null payload is a silent no-op instead
+    // of an uncaught TypeError that takes the process down.
+    const { callId, conversationId, participantIds, callType } = data || {};
     if (!callId || !conversationId || !Array.isArray(participantIds)) return;
     if (!['audio', 'video'].includes(callType)) return;
 
@@ -106,14 +116,19 @@ export const registerCallHandlers = ({
   socket.on('call:answer', (data) => relay('call:answer', data, { sdp: data?.sdp }));
   socket.on('ice:candidate', (data) => relay('ice:candidate', data, { candidate: data?.candidate }));
 
-  socket.on('call:media-state', ({ callId, audioEnabled, videoEnabled } = {}) => {
+  socket.on('call:media-state', (data) => {
+    // `= {}` in the parameter list only guards `undefined`; an explicit
+    // `null` payload would still throw on destructure, so unpack from
+    // `data || {}` instead -- see relay() above for why that matters here.
+    const { callId, audioEnabled, videoEnabled } = data || {};
     if (!callId || !registry.isMember(callId, me())) return;
     broadcastToCall(callId, 'call:peer-media-state', {
       callId, userId: me(), audioEnabled: !!audioEnabled, videoEnabled: !!videoEnabled,
     });
   });
 
-  socket.on('call:leave', ({ callId } = {}) => {
+  socket.on('call:leave', (data) => {
+    const { callId } = data || {};
     if (!callId || !registry.isMember(callId, me())) return;
     // Broadcast BEFORE leaving: once leave() runs, a call whose last member
     // just left is deleted outright, and members() would return nothing to

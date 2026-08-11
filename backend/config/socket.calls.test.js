@@ -167,4 +167,66 @@ describe('call socket handlers', () => {
     expect(left).toHaveLength(1);
     expect(left[0].payload.userId).toBe('alice');
   });
+
+  // Regression coverage for a crash found in review: relay() and several
+  // handlers used to destructure straight from the raw event payload with no
+  // guard against a missing or explicit-null payload. socket.io invokes
+  // listeners outside any try/catch, so that throw would have been an
+  // uncaught TypeError taking down the whole process for every connected
+  // user -- reachable by any client, before even calling user:join. These
+  // assert both "does not throw" and "emits nothing", since a handler that
+  // silently relayed garbage instead of throwing would also be wrong.
+  describe('malformed payloads', () => {
+    it('does not crash and relays nothing when call:offer is fired with no payload', async () => {
+      await socket.fire('call:initiate', {
+        callId: 'call1', conversationId: 'conv1', participantIds: ['bob'], callType: 'audio',
+      });
+      io.emissions.length = 0;
+
+      expect(() => socket.fire('call:offer')).not.toThrow();
+      expect(io.emissions).toHaveLength(0);
+    });
+
+    it('does not crash and relays nothing when call:offer is fired with a null payload', async () => {
+      await socket.fire('call:initiate', {
+        callId: 'call1', conversationId: 'conv1', participantIds: ['bob'], callType: 'audio',
+      });
+      io.emissions.length = 0;
+
+      expect(() => socket.fire('call:offer', null)).not.toThrow();
+      expect(io.emissions).toHaveLength(0);
+    });
+
+    it('does not crash and does nothing when call:leave is fired with no payload', async () => {
+      await socket.fire('call:initiate', {
+        callId: 'call1', conversationId: 'conv1', participantIds: ['bob'], callType: 'audio',
+      });
+      io.emissions.length = 0;
+
+      expect(() => socket.fire('call:leave')).not.toThrow();
+      expect(io.emissions).toHaveLength(0);
+      // Also confirm it was a true no-op, not a leave that just failed to notify.
+      expect(registry.isMember('call1', 'alice')).toBe(true);
+    });
+
+    it('does not crash and does nothing when call:initiate is fired with no payload', async () => {
+      // call:initiate is an async handler: a synchronous throw inside it
+      // becomes a rejected promise rather than a thrown exception at the
+      // call site, so assert on the promise settling instead of on toThrow().
+      await expect(socket.fire('call:initiate')).resolves.toBeUndefined();
+
+      expect(io.emissions).toHaveLength(0);
+      expect(socket.emissions).toHaveLength(0);
+    });
+
+    it('does not crash and does nothing when call:media-state is fired with a null payload', async () => {
+      await socket.fire('call:initiate', {
+        callId: 'call1', conversationId: 'conv1', participantIds: ['bob'], callType: 'audio',
+      });
+      io.emissions.length = 0;
+
+      expect(() => socket.fire('call:media-state', null)).not.toThrow();
+      expect(io.emissions).toHaveLength(0);
+    });
+  });
 });
