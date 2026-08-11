@@ -99,6 +99,8 @@ export const callReducer = (state, action) => {
 
     case 'PEER_REJECTED':
     case 'PEER_BUSY': {
+      const peer = state.peers[String(action.userId)];
+      if (!peer) return state;
       const peers = withoutPeer(state.peers, action.userId);
       if (Object.keys(peers).length === 0) {
         return ended({ ...state, peers }, action.type === 'PEER_BUSY' ? 'busy' : (action.reason || 'declined'));
@@ -118,6 +120,8 @@ export const callReducer = (state, action) => {
     }
 
     case 'PEER_FAILED': {
+      const peer = state.peers[String(action.userId)];
+      if (!peer) return state;
       const peers = withoutPeer(state.peers, action.userId);
       if (Object.keys(peers).length === 0) {
         return ended({ ...state, peers }, 'failed',
@@ -127,6 +131,8 @@ export const callReducer = (state, action) => {
     }
 
     case 'PEER_LEFT': {
+      const peer = state.peers[String(action.userId)];
+      if (!peer) return state;
       const peers = withoutPeer(state.peers, action.userId);
       if (Object.keys(peers).length === 0) return ended({ ...state, peers }, 'completed');
       return { ...state, peers };

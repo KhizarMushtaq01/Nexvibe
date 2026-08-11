@@ -202,6 +202,65 @@ describe('callReducer — active call', () => {
     const s = { ...active(), startedAt: Date.now() - 5000 };
     expect(callReducer(s, { type: 'END_CALL' }).startedAt).toBe(s.startedAt);
   });
+
+  it('ends with busy when peer responds with PEER_BUSY', () => {
+    const s = reduce(outgoing(), { type: 'PEER_BUSY', userId: 'bob' });
+    expect(s.status).toBe('ended');
+    expect(s.endedReason).toBe('busy');
+  });
+
+  it('ends with the CALL_ERROR message', () => {
+    const s = callReducer(active(), { type: 'CALL_ERROR', message: 'Network error' });
+    expect(s.status).toBe('ended');
+    expect(s.endedReason).toBe('failed');
+    expect(s.error).toBe('Network error');
+  });
+
+  it('ignores a removal action for a peer who already left', () => {
+    const s = reduce(outgoing(), { type: 'PEER_ACCEPTED', userId: 'bob' }, { type: 'PEER_LEFT', userId: 'bob' });
+    expect(s.status).toBe('ended');
+    expect(s.endedReason).toBe('completed');
+    const after = callReducer(s, { type: 'PEER_LEFT', userId: 'bob' });
+    expect(after).toBe(s);
+  });
+
+  it('does not corrupt endedReason when a duplicate PEER_LEFT arrives after call is ended', () => {
+    const s = reduce(outgoing(),
+      { type: 'PEER_ACCEPTED', userId: 'bob' },
+      { type: 'PEER_FAILED', userId: 'bob' });
+    expect(s.status).toBe('ended');
+    expect(s.endedReason).toBe('failed');
+    expect(s.error).toMatch(/TURN|connect/i);
+    const originalError = s.error;
+    const after = callReducer(s, { type: 'PEER_LEFT', userId: 'bob' });
+    expect(after).toBe(s);
+    expect(after.endedReason).toBe('failed');
+    expect(after.error).toBe(originalError);
+  });
+
+  it('ignores duplicate PEER_REJECTED after call is ended', () => {
+    const s = reduce(outgoing(), { type: 'PEER_REJECTED', userId: 'bob', reason: 'declined' });
+    expect(s.endedReason).toBe('declined');
+    const after = callReducer(s, { type: 'PEER_REJECTED', userId: 'bob', reason: 'declined' });
+    expect(after).toBe(s);
+    expect(after.endedReason).toBe('declined');
+  });
+
+  it('ignores duplicate PEER_FAILED after call is ended', () => {
+    const s = reduce(outgoing(), { type: 'PEER_ACCEPTED', userId: 'bob' }, { type: 'PEER_FAILED', userId: 'bob' });
+    const originalError = s.error;
+    const after = callReducer(s, { type: 'PEER_FAILED', userId: 'bob' });
+    expect(after).toBe(s);
+    expect(after.error).toBe(originalError);
+  });
+
+  it('ignores duplicate PEER_BUSY after call is ended', () => {
+    const s = reduce(outgoing(), { type: 'PEER_BUSY', userId: 'bob' });
+    expect(s.endedReason).toBe('busy');
+    const after = callReducer(s, { type: 'PEER_BUSY', userId: 'bob' });
+    expect(after).toBe(s);
+    expect(after.endedReason).toBe('busy');
+  });
 });
 
 describe('isCallBusy', () => {
