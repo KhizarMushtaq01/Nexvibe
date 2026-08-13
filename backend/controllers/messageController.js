@@ -4,6 +4,7 @@ import Notification from '../models/Notification.js';
 import { uploadToCloudinary } from '../config/cloudinary.js';
 import { sendNewMessageEmail } from '../utils/email.js';
 import { getSocketId } from '../config/socket.js';
+import { CALL_OUTCOMES, describeCallLog } from '../lib/callLog.js';
 import fs from 'fs';
 
 // These per-user arrays record one participant's private state about a
@@ -688,6 +689,74 @@ export const getUnreadCount = async (req, res) => {
       totalUnread += isForcedUnread ? Math.max(count, 1) : count;
     }
     res.json({ success: true, unreadCount: totalUnread });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Write the "Audio call · 4:12" row into the thread once a call ends
+// @route   POST /api/messages/conversations/:conversationId/call-log
+// Both participants may reach the `ended` state and try to log the same
+// call, so the write is idempotent on callId -- first one wins.
+export const logCall = async (req, res) => {
+  try {
+    const { callId, callType, outcome, duration } = req.body;
+
+    if (!callId || !['audio', 'video'].includes(callType) || !CALL_OUTCOMES.includes(outcome)) {
+      return res.status(400).json({ success: false, message: 'Invalid call log' });
+    }
+
+    const conversation = await loadParticipantConversation(req, res);
+    if (!conversation) return;
+
+    const existing = await Message.findOne({ 'callInfo.callId': callId });
+    if (existing) return res.json({ success: true, message: existing, duplicate: true });
+
+    const message = await Message.create({
+      conversation: conversation._id,
+      sender: req.user._id,
+      type: 'call',
+      content: '',
+      callInfo: {
+        callId,
+        callType,
+        outcome,
+        duration: Math.max(0, Math.min(Number(duration) || 0, 60 * 60 * 12)),
+        participants: conversation.participants
+      }
+    });
+
+    conversation.lastMessage = message._id;
+    conversation.lastMessageAt = message.createdAt;
+    await conversation.save();
+
+    // A missed call is the one outcome the other side may never have seen,
+    // so it gets a notification -- unless they muted call notifications for
+    // this conversation. An expired mute does not count, matching how
+    // getConversations reads the same list.
+    if (outcome === 'missed' || outcome === 'failed') {
+      const now = Date.now();
+      const callMutedIds = new Set(
+        (conversation.callMutedBy || [])
+          .filter(m => !m.until || new Date(m.until).getTime() > now)
+          .map(m => m.user.toString())
+      );
+      const recipients = conversation.participants
+        .map(String)
+        .filter(id => id !== req.user._id.toString() && !callMutedIds.has(id));
+
+      if (recipients.length) {
+        await Notification.insertMany(recipients.map(recipient => ({
+          recipient,
+          sender: req.user._id,
+          type: 'missed_call',
+          text: describeCallLog({ callType, outcome: 'missed', isMine: false })
+        })));
+      }
+    }
+
+    const populated = await Message.findById(message._id).populate('sender', 'username fullName avatar');
+    res.status(201).json({ success: true, message: populated });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

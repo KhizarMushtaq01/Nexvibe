@@ -1,3 +1,6 @@
+import { registerCallHandlers } from './socketCalls.js';
+import User from '../models/User.js';
+
 const onlineUsers = new Map();
 
 export const initSocket = (io) => {
@@ -5,9 +8,14 @@ export const initSocket = (io) => {
     console.log(`🔌 User connected: ${socket.id}`);
 
     // User joins with their userId
-    socket.on('user:join', (userId) => {
+    socket.on('user:join', async (userId) => {
       onlineUsers.set(userId, socket.id);
       socket.userId = userId;
+      // Cached on the socket so call:initiate can put a name and avatar on the
+      // callee's ringing screen without another DB read per call.
+      try {
+        socket.callerProfile = await User.findById(userId).select('username fullName avatar').lean();
+      } catch { socket.callerProfile = { _id: userId }; }
       io.emit('users:online', Array.from(onlineUsers.keys()));
       console.log(`👤 User ${userId} is online`);
     });
@@ -55,47 +63,8 @@ export const initSocket = (io) => {
       }
     });
 
-    // Call signaling
-    socket.on('call:initiate', (data) => {
-      const receiverSocketId = onlineUsers.get(data.receiverId);
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit('call:incoming', {
-          callerId: data.callerId,
-          callerName: data.callerName,
-          callerAvatar: data.callerAvatar,
-          type: data.type,
-          offer: data.offer
-        });
-      }
-    });
-
-    socket.on('call:answer', (data) => {
-      const callerSocketId = onlineUsers.get(data.callerId);
-      if (callerSocketId) {
-        io.to(callerSocketId).emit('call:answered', { answer: data.answer });
-      }
-    });
-
-    socket.on('call:reject', (data) => {
-      const callerSocketId = onlineUsers.get(data.callerId);
-      if (callerSocketId) {
-        io.to(callerSocketId).emit('call:rejected');
-      }
-    });
-
-    socket.on('call:end', (data) => {
-      const otherSocketId = onlineUsers.get(data.receiverId);
-      if (otherSocketId) {
-        io.to(otherSocketId).emit('call:ended');
-      }
-    });
-
-    socket.on('ice:candidate', (data) => {
-      const receiverSocketId = onlineUsers.get(data.receiverId);
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit('ice:candidate', { candidate: data.candidate });
-      }
-    });
+    // Call signaling lives in its own module -- see config/socketCalls.js.
+    registerCallHandlers({ io, socket, onlineUsers });
 
     // Story viewed
     socket.on('story:view', (data) => {

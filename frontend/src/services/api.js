@@ -205,6 +205,7 @@ export const messageAPI = {
   muteCallNotifications: (id, duration) => API.post(`/messages/conversations/${id}/mute-calls`, { duration }),
   setConversationFolder: (id, folder) => API.post(`/messages/conversations/${id}/folder`, { folder }),
   getUnreadCount: () => API.get('/messages/unread-count'),
+  logCall: (conversationId, data) => API.post(`/messages/conversations/${conversationId}/call-log`, data),
 };
 
 // NOTIFICATIONS

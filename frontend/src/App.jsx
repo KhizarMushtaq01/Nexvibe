@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SocketProvider } from './context/SocketContext';
 import { DialogProvider } from './context/DialogContext';
+import { CallProvider } from './context/CallContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HelmetProvider } from 'react-helmet-async';
 import MainLayout from './components/layout/MainLayout';
@@ -49,6 +50,7 @@ import Download from './pages/Download';
 import NotFoundPage from './pages/NotFoundPage';
 import BlockedPage from './pages/BlockedPage';
 import LoadingScreen from './components/common/LoadingScreen';
+import CallOverlay from './components/call/CallOverlay';
 import './styles/index.css';
 
 const queryClient = new QueryClient({ 
@@ -159,20 +161,23 @@ export default function App() {
             <SocketProvider>
               <BrowserRouter>
                 <DialogProvider>
-                  <AppRoutes />
-                  <Toaster
-                    position="top-center"
-                    toastOptions={{
-                      duration: 3000,
-                      style: {
-                        borderRadius: '12px',
-                        fontSize: '14px',
-                        background: 'var(--bg-primary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border)'
-                      }
-                    }}
-                  />
+                  <CallProvider>
+                    <AppRoutes />
+                    <CallOverlay />
+                    <Toaster
+                      position="top-center"
+                      toastOptions={{
+                        duration: 3000,
+                        style: {
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          background: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border)'
+                        }
+                      }}
+                    />
+                  </CallProvider>
                 </DialogProvider>
               </BrowserRouter>
             </SocketProvider>
