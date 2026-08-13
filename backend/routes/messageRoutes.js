@@ -19,6 +19,7 @@ msgRouter.delete('/conversations/:conversationId', protect, msg.deleteConversati
 msgRouter.post('/conversations/:conversationId/mark-unread', protect, msg.markConversationUnread);
 msgRouter.post('/conversations/:conversationId/flag', protect, msg.flagConversation);
 msgRouter.post('/conversations/:conversationId/mute-calls', protect, msg.muteCallNotifications);
+msgRouter.post('/conversations/:conversationId/call-log', protect, msg.logCall);
 msgRouter.post('/conversations/:conversationId/folder', protect, msg.setConversationFolder);
 msgRouter.delete('/:messageId', protect, msg.deleteMessage);
 msgRouter.post('/:messageId/react', protect, msg.reactToMessage);

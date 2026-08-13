@@ -59,8 +59,18 @@ const messageSchema = new mongoose.Schema({
   isEdited: { type: Boolean, default: false },
   editedAt: Date,
   
-  isUnsent: { type: Boolean, default: false }
-  
+  isUnsent: { type: Boolean, default: false },
+
+  // Populated only when type === 'call'. `callId` is unique-per-call so a
+  // duplicate log from the other participant can be discarded.
+  callInfo: {
+    callId: { type: String, index: true },
+    callType: { type: String, enum: ['audio', 'video'] },
+    outcome: { type: String, enum: ['completed', 'missed', 'declined', 'failed', 'busy'] },
+    duration: { type: Number, default: 0 },
+    participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+  }
+
 }, { timestamps: true });
 
 const conversationSchema = new mongoose.Schema({

@@ -9,7 +9,7 @@ const notificationSchema = new mongoose.Schema({
     enum: [
       'like', 'comment', 'reply', 'follow', 'follow_request', 'follow_accept',
       'mention', 'tag', 'story_view', 'story_reaction', 'post_share',
-      'message', 'comment_like', 'reel_like', 'reel_comment',
+      'message', 'missed_call', 'comment_like', 'reel_like', 'reel_comment',
       'live', 'reminder', 'security', 'system'
     ],
     required: true

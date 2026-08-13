@@ -20,6 +20,7 @@ import {
   FiMessageCircle, FiMic, FiPlusCircle, FiLock
 } from 'react-icons/fi';
 import { BsCheck2All, BsCheck2 } from 'react-icons/bs';
+import { describeCallLog } from '../../lib/callLog';
 import { ratchetEncrypt } from '../../lib/e2eCrypto';
 import { getOrCreateSenderSession, decryptIncomingMessage, withSessionLock } from '../../lib/e2eSession';
 import { saveSession } from '../../lib/e2eStorage';
@@ -617,6 +618,21 @@ export default function MessagesPage() {
                 const prevMsg = messages[i - 1];
                 const showAvatar = !isMine && (msg.sender?._id || msg.sender) !== (prevMsg?.sender?._id || prevMsg?.sender);
                 const isRead = msg.readBy?.some(r => (r.user?._id || r.user) !== user?._id);
+
+                // A call is an event in the thread, not a bubble from one
+                // side, so it renders as a centered system row instead.
+                if (msg.type === 'call') {
+                  return (
+                    <div key={msg._id} className="flex justify-center py-2">
+                      <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] bg-[var(--bg-tertiary)] px-3 py-1.5 rounded-full">
+                        {msg.callInfo?.callType === 'video'
+                          ? <FiVideo className="w-3.5 h-3.5" />
+                          : <FiPhone className="w-3.5 h-3.5" />}
+                        <span>{describeCallLog({ ...msg.callInfo, isMine })}</span>
+                      </div>
+                    </div>
+                  );
+                }
 
                 return (
                   <div key={msg._id} className={`group flex gap-2 items-end ${isMine ? 'flex-row-reverse' : 'flex-row'} animate-fade-in`}>
