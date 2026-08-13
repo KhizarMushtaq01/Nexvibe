@@ -36,6 +36,7 @@ export default {
         'pulse-ring': 'pulseRing 1.5s ease-out infinite',
         'shimmer': 'shimmer 1.5s infinite',
         'bounce-subtle': 'bounceSubtle 0.6s ease-out',
+        'bounce-slow': 'bounceSlow 1.4s ease-in-out infinite',
         'heart-burst': 'heartBurst 0.45s ease-out',
       },
       keyframes: {
@@ -46,6 +47,7 @@ export default {
         pulseRing: { '0%': { transform: 'scale(0.8)', opacity: 1 }, '100%': { transform: 'scale(1.8)', opacity: 0 } },
         shimmer: { '0%': { backgroundPosition: '-200% 0' }, '100%': { backgroundPosition: '200% 0' } },
         bounceSubtle: { '0%,100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.15)' } },
+        bounceSlow: { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-8px)' } },
         heartBurst: { '0%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.4)' }, '100%': { transform: 'scale(1)' } },
       },
     },

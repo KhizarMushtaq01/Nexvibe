@@ -50,6 +50,7 @@ import Download from './pages/Download';
 import NotFoundPage from './pages/NotFoundPage';
 import BlockedPage from './pages/BlockedPage';
 import LoadingScreen from './components/common/LoadingScreen';
+import CallOverlay from './components/call/CallOverlay';
 import './styles/index.css';
 
 const queryClient = new QueryClient({ 
@@ -162,6 +163,7 @@ export default function App() {
                 <DialogProvider>
                   <CallProvider>
                     <AppRoutes />
+                    <CallOverlay />
                     <Toaster
                       position="top-center"
                       toastOptions={{
