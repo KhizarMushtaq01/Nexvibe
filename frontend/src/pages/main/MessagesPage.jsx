@@ -4,6 +4,7 @@ import { messageAPI, searchAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { useConfirm } from '../../context/DialogContext';
+import { useCall } from '../../context/CallContext';
 import Avatar from '../../components/common/Avatar';
 import ReportModal from '../../components/common/ReportModal';
 import ChatListItem from '../../components/message/ChatListItem';
@@ -29,6 +30,7 @@ export default function MessagesPage() {
   const { on, joinRoom, leaveRoom, emit } = useSocket();
   const navigate = useNavigate();
   const confirmDialog = useConfirm();
+  const { startCall, call } = useCall();
   const [conversations, setConversations] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const selectionMode = selectedIds.size > 0;
@@ -541,12 +543,41 @@ export default function MessagesPage() {
                   </div>
                 )}
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button className="p-2 hover:bg-[var(--bg-tertiary)] rounded-full transition-colors">
-                    <FiPhone className="w-5 h-5" />
-                  </button>
-                  <button className="p-2 hover:bg-[var(--bg-tertiary)] rounded-full transition-colors">
-                    <FiVideo className="w-5 h-5" />
-                  </button>
+                  {(() => {
+                    const participantCount = activeConv.participants?.length || 0;
+                    // Calls are mesh peer-to-peer, so the cap is a real
+                    // technical limit, not a product choice -- surface it
+                    // rather than letting the call fail halfway through.
+                    const tooManyPeople = participantCount > 8;
+                    const busy = call.status !== 'idle' && call.status !== 'ended';
+                    const disabled = tooManyPeople || busy || !window.isSecureContext;
+                    const reason = tooManyPeople
+                      ? 'Calls support up to 8 people'
+                      : busy ? 'You are already on a call'
+                      : !window.isSecureContext ? 'Calls need a secure (https) connection'
+                      : '';
+
+                    return (
+                      <>
+                        <button
+                          onClick={() => startCall(activeConv, 'audio')}
+                          disabled={disabled}
+                          title={reason || 'Audio call'}
+                          aria-label="Start audio call"
+                          className="p-2 hover:bg-[var(--bg-tertiary)] rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                          <FiPhone className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => startCall(activeConv, 'video')}
+                          disabled={disabled}
+                          title={reason || 'Video call'}
+                          aria-label="Start video call"
+                          className="p-2 hover:bg-[var(--bg-tertiary)] rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                          <FiVideo className="w-5 h-5" />
+                        </button>
+                      </>
+                    );
+                  })()}
                   <button className="p-2 hover:bg-[var(--bg-tertiary)] rounded-full transition-colors">
                     <FiMoreHorizontal className="w-5 h-5" />
                   </button>
