@@ -279,9 +279,11 @@ userSchema.virtual('followingCount').get(function () {
   return this.following?.length || 0;
 });
 
-// Indexes
-userSchema.index({ username: 1 });
-userSchema.index({ email: 1 });
+// Indexes -- username/email/phone are already indexed by their `unique: true`
+// field options above (email and phone additionally as `sparse`, so that the
+// many users without one don't collide on null). Re-declaring them here built
+// a second, weaker non-unique index on each and made Mongoose warn about the
+// duplicate on every boot.
 userSchema.index({ fullName: 'text', username: 'text', bio: 'text' });
 
 // Hash password before save
