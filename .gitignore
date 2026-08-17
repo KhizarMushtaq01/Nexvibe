@@ -1031,7 +1031,9 @@ public/out/
 # ============================================
 .vercel
 .output
-vercel.json
+# vercel.json is deliberately NOT ignored -- it is deployment configuration
+# that Vercel reads from the repo, so ignoring it means the settings never
+# reach the platform.
 
 # ============================================
 # Next.js specific
