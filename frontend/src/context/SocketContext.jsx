@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { API_ORIGIN } from '../lib/apiOrigin';
 
 const SocketContext = createContext(null);
 
@@ -16,7 +17,7 @@ export const SocketProvider = ({ children }) => {
       return;
     }
 
-    const socket = io(window.location.origin, {
+    const socket = io(API_ORIGIN || window.location.origin, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
     });
